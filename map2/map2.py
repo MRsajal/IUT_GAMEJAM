@@ -1,9 +1,11 @@
 from pathlib import Path
+import random
 
 import pygame
 
 from player import Player
 from portal import Portal
+from slime import Slime, SlimeDrop
 from .platform import platform
 
 
@@ -13,6 +15,11 @@ MAP_WIDTH = 960
 MAP_HEIGHT = 320
 TILE_SIZE = 16
 WALKABLE_TILE = 142
+PLAYER_SPAWN = (80, 100)
+SLIME_SPAWN_INTERVAL = 10.0
+SLIME_POINTS = 5
+SLIME_DROP_CHANCE = 0.70
+INITIAL_SLIME_POSITIONS = (220, 360, 520, 700, 860)
 
 MAP_PATH = Path(__file__).parent / "map2.png"
 
@@ -48,15 +55,25 @@ def create_platform_rects():
     return platform_rects
 
 
-def map2():
-    pygame.init()
+def create_slime_drop(slime, ground_y):
+    """Return a drop for a defeated slime based on its 70% drop chance."""
+    if random.random() < SLIME_DROP_CHANCE:
+        return SlimeDrop(center_x=slime.rect.centerx, bottom_y=ground_y)
+
+    return None
+
+
+def map2(player=None):
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("Map 2")
     clock = pygame.time.Clock()
 
     map_surface = load_map()
     platform_rects = create_platform_rects()
-    player = Player(x=80, y=100)
+    if player is None:
+        player = Player(*PLAYER_SPAWN)
+    else:
+        player.set_position(*PLAYER_SPAWN)
 
     # Place the return portal above the leftmost platform.
     left_edge_platforms = [
@@ -67,8 +84,16 @@ def map2():
     )
     portal = Portal(center_x=24, bottom_y=portal_bottom)
 
-    # Add future enemies here. Each needs a rect and take_damage(amount).
-    damage_targets = []
+    ground_y = min(
+        (rect.top for rect in platform_rects), default=MAP_HEIGHT
+    )
+    slimes = [
+        Slime(center_x=x, bottom_y=ground_y)
+        for x in INITIAL_SLIME_POSITIONS
+    ]
+    slime_drops = []
+    slime_spawn_timer = 0.0
+
     camera_x = 0.0
     running = True
     next_map = None
@@ -85,11 +110,47 @@ def map2():
             player.handle_event(event)
 
         player.update(
-            delta_time, platform_rects, MAP_WIDTH, damage_targets
+            delta_time, platform_rects, MAP_WIDTH, slimes
         )
         portal.update(delta_time)
 
-        if player.rect.colliderect(portal.rect):
+        # Reward defeated enemies and roll for their item drops.
+        defeated_slimes = [slime for slime in slimes if not slime.alive]
+        for slime in defeated_slimes:
+            player.add_points(SLIME_POINTS)
+            slime_drop = create_slime_drop(slime, ground_y)
+            if slime_drop is not None:
+                slime_drops.append(slime_drop)
+
+        slimes = [slime for slime in slimes if slime.alive]
+
+        for slime in slimes:
+            slime.update(delta_time, player, MAP_WIDTH)
+
+        slime_spawn_timer += delta_time
+        while slime_spawn_timer >= SLIME_SPAWN_INTERVAL:
+            slime_spawn_timer -= SLIME_SPAWN_INTERVAL
+            random_x = random.randint(100, MAP_WIDTH - 30)
+            slimes.append(Slime(center_x=random_x, bottom_y=ground_y))
+
+        collected_drops = [
+            slime_drop
+            for slime_drop in slime_drops
+            if player.rect.colliderect(slime_drop.rect)
+        ]
+        if collected_drops:
+            player.collect_drops(len(collected_drops))
+            slime_drops = [
+                slime_drop
+                for slime_drop in slime_drops
+                if slime_drop not in collected_drops
+            ]
+
+        if player.health <= 0:
+            player.respawn(*PLAYER_SPAWN)
+            next_map = "map1"
+            running = False
+        elif player.rect.colliderect(portal.rect):
             next_map = "map1"
             running = False
 
@@ -103,10 +164,13 @@ def map2():
         )
         screen.blit(map_surface, (0, 0), camera_area)
         portal.draw(screen, camera_x)
+        for slime_drop in slime_drops:
+            slime_drop.draw(screen, camera_x)
+        for slime in slimes:
+            slime.draw(screen, camera_x)
         player.draw(screen, camera_x)
         player.draw_health_bar(screen)
 
         pygame.display.flip()
 
-    pygame.quit()
-    return next_map
+    return next_map, player

@@ -13,6 +13,7 @@ MAP_WIDTH = 960
 MAP_HEIGHT = 320
 TILE_SIZE = 16
 WALKABLE_TILE = 142
+PLAYER_SPAWN = (80, 180)
 
 MAP_PATH = Path(__file__).parent / "map.png"
 
@@ -48,24 +49,40 @@ def create_platform_rects():
     return platform_rects
 
 
-def map1():
-    pygame.init()
+def map1(player=None):
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("Map 1")
     clock = pygame.time.Clock()
 
     map_surface = load_map()
     platform_rects = create_platform_rects()
-    player = Player(x=80, y=100)
+    if player is None:
+        player = Player(*PLAYER_SPAWN)
+    else:
+        player.set_position(*PLAYER_SPAWN)
 
-    # Place the portal above the rightmost platform at the end of the map.
+    # Decorative portal showing where the player enters Map 1.
+    spawn_ground = min(
+        (
+            rect.top
+            for rect in platform_rects
+            if rect.left <= player.rect.centerx < rect.right
+        ),
+        default=MAP_HEIGHT,
+    )
+    spawn_portal = Portal(
+        center_x=player.rect.centerx,
+        bottom_y=spawn_ground,
+    )
+
+    # Place the Map 2 portal at the end of Map 1.
     right_edge_platforms = [
         rect for rect in platform_rects if rect.right == MAP_WIDTH
     ]
     portal_bottom = min(
         (rect.top for rect in right_edge_platforms), default=MAP_HEIGHT
     )
-    portal = Portal(center_x=MAP_WIDTH - 24, bottom_y=portal_bottom)
+    exit_portal = Portal(center_x=MAP_WIDTH - 24, bottom_y=portal_bottom)
 
     # Add future enemies here. Each needs a rect and take_damage(amount).
     damage_targets = []
@@ -87,9 +104,14 @@ def map1():
         player.update(
             delta_time, platform_rects, MAP_WIDTH, damage_targets
         )
-        portal.update(delta_time)
+        spawn_portal.update(delta_time)
+        exit_portal.update(delta_time)
 
-        if player.rect.colliderect(portal.rect):
+        if player.health <= 0:
+            player.respawn(*PLAYER_SPAWN)
+            next_map = "map1"
+            running = False
+        elif player.rect.colliderect(exit_portal.rect):
             next_map = "map2"
             running = False
 
@@ -102,11 +124,11 @@ def map1():
             round(camera_x), 0, SCREEN_WIDTH, SCREEN_HEIGHT
         )
         screen.blit(map_surface, (0, 0), camera_area)
-        portal.draw(screen, camera_x)
+        spawn_portal.draw(screen, camera_x)
+        exit_portal.draw(screen, camera_x)
         player.draw(screen, camera_x)
         player.draw_health_bar(screen)
 
         pygame.display.flip()
 
-    pygame.quit()
-    return next_map
+    return next_map, player

@@ -10,6 +10,9 @@ ATTACK_ANIMATION_SPEED = 12
 ATTACK_FRAME_COUNT = 5
 STARTING_HEALTH = 50
 STARTING_ATTACK_DAMAGE = 20
+POINTS_PER_LEVEL = 100
+HEALTH_PER_LEVEL = 10
+ATTACK_DAMAGE_PER_LEVEL = 5
 ATTACK_RANGE = 20
 ATTACK_DURATION = ATTACK_FRAME_COUNT / ATTACK_ANIMATION_SPEED
 ATTACK_COOLDOWN = 0.5
@@ -43,6 +46,9 @@ class Player:
         self.max_health = STARTING_HEALTH
         self.health = self.max_health
         self.attack_damage = STARTING_ATTACK_DAMAGE
+        self.points = 0
+        self.next_level_points = POINTS_PER_LEVEL
+        self.collected_drops = 0
 
         self.attack_time_left = 0.0
         self.attack_cooldown_left = 0.0
@@ -139,6 +145,30 @@ class Player:
         self.health += health_increase
         self.attack_damage += attack_damage_increase
 
+    def add_points(self, amount):
+        """Add score and process every reached level threshold."""
+        self.points += max(0, amount)
+
+        while self.points >= self.next_level_points:
+            self.level_up(HEALTH_PER_LEVEL, ATTACK_DAMAGE_PER_LEVEL)
+            self.next_level_points += POINTS_PER_LEVEL
+
+    def collect_drops(self, amount=1):
+        self.collected_drops += max(0, amount)
+
+    def set_position(self, x, y):
+        """Move to a map spawn without resetting player stats."""
+        self.rect.topleft = (x, y)
+        self.position.update(self.rect.topleft)
+        self.velocity_y = 0.0
+        self.attack_time_left = 0.0
+        self.attack_cooldown_left = 0.0
+
+    def respawn(self, x, y):
+        """Restore health while preserving level, points, and drops."""
+        self.health = self.max_health
+        self.set_position(x, y)
+
     def update(self, delta_time, platform_rects, map_width, damage_targets=()):
         keys = pygame.key.get_pressed()
         direction = 0
@@ -234,3 +264,13 @@ class Player:
             (255, 255, 255),
         )
         screen.blit(label, (bar_x + 4, bar_y - 1))
+
+        points_label = self.ui_font.render(
+            (
+                f"Points: {self.points}/{self.next_level_points}"
+                f"   Drops: {self.collected_drops}"
+            ),
+            True,
+            (255, 235, 120),
+        )
+        screen.blit(points_label, (bar_x, bar_y + bar_height + 3))
