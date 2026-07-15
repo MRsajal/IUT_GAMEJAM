@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pygame
 
+from npc1 import HealingNPC
 from player import Player
 from portal import Portal
 from .platform import platform
@@ -14,6 +15,8 @@ MAP_HEIGHT = 320
 TILE_SIZE = 16
 WALKABLE_TILE = 142
 PLAYER_SPAWN = (80, 180)
+MAP2_RETURN_SPAWN = (MAP_WIDTH - 80, 180)
+NPC_CENTER_X = 480
 
 MAP_PATH = Path(__file__).parent / "map.png"
 
@@ -49,29 +52,32 @@ def create_platform_rects():
     return platform_rects
 
 
-def map1(player=None):
+def map1(player=None, arrived_from=None):
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("Map 1")
     clock = pygame.time.Clock()
 
     map_surface = load_map()
     platform_rects = create_platform_rects()
+    entry_spawn = (
+        MAP2_RETURN_SPAWN if arrived_from == "map2" else PLAYER_SPAWN
+    )
     if player is None:
-        player = Player(*PLAYER_SPAWN)
+        player = Player(*entry_spawn)
     else:
-        player.set_position(*PLAYER_SPAWN)
+        player.set_position(*entry_spawn)
 
     # Decorative portal showing where the player enters Map 1.
     spawn_ground = min(
         (
             rect.top
             for rect in platform_rects
-            if rect.left <= player.rect.centerx < rect.right
+            if rect.left <= PLAYER_SPAWN[0] + 12 < rect.right
         ),
         default=MAP_HEIGHT,
     )
     spawn_portal = Portal(
-        center_x=player.rect.centerx,
+        center_x=PLAYER_SPAWN[0] + 12,
         bottom_y=spawn_ground,
     )
 
@@ -84,11 +90,22 @@ def map1(player=None):
     )
     exit_portal = Portal(center_x=MAP_WIDTH - 24, bottom_y=portal_bottom)
 
+    npc_ground = min(
+        (
+            rect.top
+            for rect in platform_rects
+            if rect.left <= NPC_CENTER_X < rect.right
+        ),
+        default=MAP_HEIGHT,
+    )
+    healing_npc = HealingNPC(NPC_CENTER_X, npc_ground)
+
     # Add future enemies here. Each needs a rect and take_damage(amount).
     damage_targets = []
     camera_x = 0.0
     running = True
     next_map = None
+    next_arrival_from = None
 
     while running:
         delta_time = clock.tick(60) / 1000
@@ -97,7 +114,16 @@ def map1(player=None):
             if event.type == pygame.QUIT:
                 running = False
             else:
-                event_consumed = player.handle_event(event)
+                event_consumed = False
+                if (
+                    event.type == pygame.KEYDOWN
+                    and event.key == pygame.K_e
+                    and not player.ui_open
+                ):
+                    event_consumed = healing_npc.talk(player)
+
+                if not event_consumed:
+                    event_consumed = player.handle_event(event)
                 if (
                     not event_consumed
                     and event.type == pygame.KEYDOWN
@@ -111,10 +137,12 @@ def map1(player=None):
             )
         spawn_portal.update(delta_time)
         exit_portal.update(delta_time)
+        healing_npc.update(delta_time)
 
         if player.death_animation_finished:
             player.respawn(*PLAYER_SPAWN)
             next_map = "map1"
+            next_arrival_from = None
             running = False
         elif (
             not player.is_dead
@@ -122,6 +150,7 @@ def map1(player=None):
             and player.rect.colliderect(exit_portal.rect)
         ):
             next_map = "map2"
+            next_arrival_from = "map1"
             running = False
 
         # Follow the player while keeping the camera inside the map.
@@ -135,10 +164,11 @@ def map1(player=None):
         screen.blit(map_surface, (0, 0), camera_area)
         spawn_portal.draw(screen, camera_x)
         exit_portal.draw(screen, camera_x)
+        healing_npc.draw(screen, camera_x, player)
         player.draw(screen, camera_x)
         player.draw_health_bar(screen)
         player.draw_active_screen(screen)
 
         pygame.display.flip()
 
-    return next_map, player
+    return next_map, player, next_arrival_from

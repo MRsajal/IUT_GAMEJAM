@@ -9,6 +9,8 @@ JUMP_SPEED = 300
 IDLE_ANIMATION_SPEED = 8
 ATTACK_ANIMATION_SPEED = 12
 ATTACK_FRAME_COUNT = 5
+FIRE_ANIMATION_SPEED = 12
+FIRE_FRAME_COUNT = 9
 DAMAGE_ANIMATION_SPEED = 12
 DAMAGE_FRAME_COUNT = 3
 DEATH_ANIMATION_SPEED = 10
@@ -20,13 +22,18 @@ HEALTH_PER_LEVEL = 10
 ATTACK_DAMAGE_PER_LEVEL = 5
 DEATH_POINT_PENALTY = 10
 ATTACK_RANGE = 20
+FIRE_RANGE = 100
+FIRE_DAMAGE = 25
 ATTACK_DURATION = ATTACK_FRAME_COUNT / ATTACK_ANIMATION_SPEED
 ATTACK_COOLDOWN = 0.5
+FIRE_DURATION = FIRE_FRAME_COUNT / FIRE_ANIMATION_SPEED
+FIRE_COOLDOWN = 1.0
 DAMAGE_DURATION = DAMAGE_FRAME_COUNT / DAMAGE_ANIMATION_SPEED
 DEATH_DURATION = DEATH_FRAME_COUNT / DEATH_ANIMATION_SPEED
 
 IDLE_PATH = Path(__file__).parent / "idle"
 ATTACK_PATH = Path(__file__).parent / "attack"
+FIRE_PATH = Path(__file__).parent / "fire"
 DAMAGE_PATH = Path(__file__).parent / "damage"
 DEATH_PATH = Path(__file__).parent / "death"
 
@@ -36,6 +43,7 @@ MAGIC_RECIPES = [
         "name": "Fire Magic",
         "required_level": 2,
         "emberstone_cost": 2,
+        "uses_per_craft": 3,
     },
 ]
 
@@ -51,6 +59,11 @@ class Player:
         self.attack_left = [
             pygame.transform.flip(frame, True, False)
             for frame in self.attack_right
+        ]
+        self.fire_right = self._load_frames(FIRE_PATH, FIRE_FRAME_COUNT)
+        self.fire_left = [
+            pygame.transform.flip(frame, True, False)
+            for frame in self.fire_right
         ]
         self.damage_right = self._load_frames(
             DAMAGE_PATH, DAMAGE_FRAME_COUNT
@@ -83,13 +96,18 @@ class Player:
         self.points = 0
         self.next_level_points = POINTS_PER_LEVEL
         self.emberstones = 0
+        self.wind_crystals = 0
         self.held_magic = []
+        self.magic_uses = {"Fire Magic": 0}
         self.active_screen = None
         self.craft_message = ""
 
         self.attack_time_left = 0.0
         self.attack_cooldown_left = 0.0
         self.attack_has_dealt_damage = False
+        self.fire_time_left = 0.0
+        self.fire_cooldown_left = 0.0
+        self.fire_has_dealt_damage = False
         self.damage_time_left = 0.0
         self.death_animation_time = 0.0
         self.death_animation_finished = False
@@ -162,7 +180,24 @@ class Player:
             self.on_ground = False
             return True
 
-        if event.key == pygame.K_SPACE and self.attack_cooldown_left <= 0:
+        if (
+            event.key == pygame.K_f
+            and self.magic_uses.get("Fire Magic", 0) > 0
+            and self.fire_cooldown_left <= 0
+            and not self.is_attacking
+            and not self.is_casting_fire
+        ):
+            self.fire_time_left = FIRE_DURATION
+            self.fire_cooldown_left = FIRE_COOLDOWN
+            self.fire_has_dealt_damage = False
+            self._consume_magic_use("Fire Magic")
+            return True
+
+        if (
+            event.key == pygame.K_SPACE
+            and self.attack_cooldown_left <= 0
+            and not self.is_casting_fire
+        ):
             self.attack_time_left = ATTACK_DURATION
             self.attack_cooldown_left = ATTACK_COOLDOWN
             self.attack_has_dealt_damage = False
@@ -205,9 +240,6 @@ class Player:
                 f"Unlocks at level {recipe['required_level']}."
             )
             return False
-        if magic_name in self.held_magic:
-            self.craft_message = f"You already hold {magic_name}."
-            return False
         if self.emberstones < recipe["emberstone_cost"]:
             self.craft_message = (
                 f"Need {recipe['emberstone_cost']} Emberstones."
@@ -216,8 +248,34 @@ class Player:
 
         self.emberstones -= recipe["emberstone_cost"]
         self.held_magic.append(magic_name)
-        self.craft_message = f"Crafted {magic_name}!"
+        uses_added = recipe.get("uses_per_craft", 1)
+        self.magic_uses[magic_name] = (
+            self.magic_uses.get(magic_name, 0) + uses_added
+        )
+        self.craft_message = (
+            f"Crafted {magic_name}! +{uses_added} uses"
+        )
         return True
+
+    def _consume_magic_use(self, magic_name):
+        remaining_uses = max(0, self.magic_uses.get(magic_name, 0) - 1)
+        self.magic_uses[magic_name] = remaining_uses
+
+        recipe = next(
+            (
+                item
+                for item in MAGIC_RECIPES
+                if item["name"] == magic_name
+            ),
+            None,
+        )
+        uses_per_craft = recipe.get("uses_per_craft", 1) if recipe else 1
+        copies_needed = (
+            remaining_uses + uses_per_craft - 1
+        ) // uses_per_craft
+
+        while self.held_magic.count(magic_name) > copies_needed:
+            self.held_magic.remove(magic_name)
 
     def get_attack_rect(self):
         """Return the attack area in world coordinates."""
@@ -236,9 +294,30 @@ class Player:
             self.rect.height,
         )
 
+    def get_fire_attack_rect(self):
+        """Return the 100-pixel Fire Magic area in world coordinates."""
+        if self.facing_right:
+            return pygame.Rect(
+                self.rect.left,
+                self.rect.top,
+                self.rect.width + FIRE_RANGE,
+                self.rect.height,
+            )
+
+        return pygame.Rect(
+            self.rect.left - FIRE_RANGE,
+            self.rect.top,
+            self.rect.width + FIRE_RANGE,
+            self.rect.height,
+        )
+
     @property
     def is_attacking(self):
         return self.attack_time_left > 0
+
+    @property
+    def is_casting_fire(self):
+        return self.fire_time_left > 0
 
     @property
     def is_taking_damage(self):
@@ -275,6 +354,32 @@ class Player:
 
         self.attack_time_left = max(0, self.attack_time_left - delta_time)
 
+    def _update_fire_attack(self, delta_time, damage_targets):
+        self.fire_cooldown_left = max(
+            0, self.fire_cooldown_left - delta_time
+        )
+
+        if not self.is_casting_fire:
+            return
+
+        if not self.fire_has_dealt_damage:
+            fire_rect = self.get_fire_attack_rect()
+
+            for target in damage_targets:
+                take_damage = getattr(target, "take_damage", None)
+                target_rect = getattr(target, "rect", None)
+
+                if (
+                    target_rect is not None
+                    and callable(take_damage)
+                    and fire_rect.colliderect(target_rect)
+                ):
+                    take_damage(FIRE_DAMAGE)
+
+            self.fire_has_dealt_damage = True
+
+        self.fire_time_left = max(0, self.fire_time_left - delta_time)
+
     def take_damage(self, amount):
         """Reduce player health without allowing it to go below zero."""
         if self.is_dead or self.is_taking_damage:
@@ -287,6 +392,8 @@ class Player:
         self.health = max(0, self.health - damage)
         self.attack_time_left = 0.0
         self.attack_has_dealt_damage = False
+        self.fire_time_left = 0.0
+        self.fire_has_dealt_damage = False
 
         if self.is_dead:
             self.damage_time_left = 0.0
@@ -322,6 +429,9 @@ class Player:
     def collect_emberstones(self, amount=1):
         self.emberstones += max(0, amount)
 
+    def collect_wind_crystals(self, amount=1):
+        self.wind_crystals += max(0, amount)
+
     def collect_drops(self, amount=1):
         """Compatibility method for existing Map 2 code."""
         self.collect_emberstones(amount)
@@ -334,6 +444,9 @@ class Player:
         self.on_ground = False
         self.attack_time_left = 0.0
         self.attack_cooldown_left = 0.0
+        self.fire_time_left = 0.0
+        self.fire_cooldown_left = 0.0
+        self.fire_has_dealt_damage = False
         self.damage_time_left = 0.0
         self.death_animation_time = 0.0
         self.death_animation_finished = False
@@ -346,7 +459,14 @@ class Player:
         self.health = self.max_health
         self.set_position(x, y)
 
-    def update(self, delta_time, platform_rects, map_width, damage_targets=()):
+    def update(
+        self,
+        delta_time,
+        platform_rects,
+        map_width,
+        damage_targets=(),
+        solid_rects=(),
+    ):
         if self.is_dead:
             self.death_animation_time = min(
                 DEATH_DURATION,
@@ -360,7 +480,7 @@ class Player:
         keys = pygame.key.get_pressed()
         direction = 0
 
-        if not self.is_taking_damage:
+        if not self.is_taking_damage and not self.is_casting_fire:
             if keys[pygame.K_a] or keys[pygame.K_LEFT]:
                 direction -= 1
                 self.facing_right = False
@@ -376,7 +496,24 @@ class Player:
         )
         self.rect.x = round(self.position.x)
 
-        # Gravity and one-way platform collision.
+        # Solid object sides block walking but can be cleared by jumping.
+        if direction != 0:
+            ordered_solids = sorted(
+                solid_rects,
+                key=lambda rect: rect.x,
+                reverse=direction < 0,
+            )
+            for solid_rect in ordered_solids:
+                if not self.rect.colliderect(solid_rect):
+                    continue
+
+                if direction > 0:
+                    self.rect.right = solid_rect.left
+                else:
+                    self.rect.left = solid_rect.right
+                self.position.x = self.rect.x
+
+        # Gravity and landing collision for platforms and solid objects.
         old_bottom = self.rect.bottom
         self.velocity_y += GRAVITY * delta_time
         self.position.y += self.velocity_y * delta_time
@@ -384,7 +521,7 @@ class Player:
         self.on_ground = False
 
         if self.velocity_y >= 0:
-            for platform_rect in platform_rects:
+            for platform_rect in (*platform_rects, *solid_rects):
                 horizontally_overlapping = (
                     self.rect.right > platform_rect.left
                     and self.rect.left < platform_rect.right
@@ -402,14 +539,17 @@ class Player:
                     break
 
         self.animation_time += delta_time
+        self._update_fire_attack(delta_time, damage_targets)
         if self.is_taking_damage:
             self.damage_time_left = max(
                 0, self.damage_time_left - delta_time
             )
-        else:
+        elif not self.is_casting_fire:
             self._update_attack(delta_time, damage_targets)
 
     def draw(self, screen, camera_x):
+        drawing_fire = False
+
         if self.is_dead:
             frames = (
                 self.death_right if self.facing_right else self.death_left
@@ -427,6 +567,16 @@ class Player:
             damage_elapsed = DAMAGE_DURATION - self.damage_time_left
             frame_index = min(
                 int(damage_elapsed * DAMAGE_ANIMATION_SPEED),
+                len(frames) - 1,
+            )
+        elif self.is_casting_fire:
+            drawing_fire = True
+            frames = (
+                self.fire_right if self.facing_right else self.fire_left
+            )
+            fire_elapsed = FIRE_DURATION - self.fire_time_left
+            frame_index = min(
+                int(fire_elapsed * FIRE_ANIMATION_SPEED),
                 len(frames) - 1,
             )
         elif self.is_attacking:
@@ -447,9 +597,19 @@ class Player:
         image = frames[frame_index]
 
         # Keep differently sized animation frames aligned at the feet.
-        draw_rect = image.get_rect(
-            midbottom=(self.rect.centerx - round(camera_x), self.rect.bottom)
-        )
+        player_screen_x = self.rect.centerx - round(camera_x)
+        if drawing_fire and self.facing_right:
+            draw_rect = image.get_rect(
+                bottomleft=(player_screen_x - 16, self.rect.bottom)
+            )
+        elif drawing_fire:
+            draw_rect = image.get_rect(
+                bottomright=(player_screen_x + 16, self.rect.bottom)
+            )
+        else:
+            draw_rect = image.get_rect(
+                midbottom=(player_screen_x, self.rect.bottom)
+            )
         screen.blit(image, draw_rect)
 
     def draw_health_bar(self, screen):
@@ -483,6 +643,7 @@ class Player:
             (
                 f"Points: {self.points}/{self.next_level_points}"
                 f"   Emberstones: {self.emberstones}"
+                f"   Wind: {self.wind_crystals}"
             ),
             True,
             (255, 235, 120),
@@ -527,12 +688,8 @@ class Player:
             recipe_line = "Fire Magic - Locked until level 2"
             recipe_color = (160, 160, 170)
             instruction = "No magic can be crafted yet."
-        elif recipe["name"] in self.held_magic:
-            recipe_line = "Fire Magic - Crafted"
-            recipe_color = (100, 220, 140)
-            instruction = "You already hold this magic."
         else:
-            recipe_line = "1. Fire Magic - 2 Emberstones"
+            recipe_line = "1. Fire Magic - 2 Emberstones (+3 uses)"
             recipe_color = (255, 145, 80)
             instruction = "Press 1 or ENTER to craft."
 
@@ -567,6 +724,7 @@ class Player:
             f"Level: {self.level}",
             f"Points: {self.points} / {self.next_level_points}",
             f"Emberstones: {self.emberstones}",
+            f"Wind Crystals: {self.wind_crystals}",
             "Magic held:",
         ]
         y = panel.y + 58
@@ -575,10 +733,21 @@ class Player:
             screen.blit(text, (panel.x + 24, y))
             y += 27
 
-        magic_names = self.held_magic or ["None"]
+        magic_names = list(dict.fromkeys(self.held_magic))
+        if not magic_names:
+            magic_names = ["None"]
+
         for magic_name in magic_names:
+            if magic_name == "None":
+                magic_line = "- None"
+            else:
+                copies = self.held_magic.count(magic_name)
+                uses = self.magic_uses.get(magic_name, 0)
+                magic_line = (
+                    f"- {magic_name} x{copies} ({uses} uses left)"
+                )
             text = self.ui_font.render(
-                f"- {magic_name}", True, (255, 170, 100)
+                magic_line, True, (255, 170, 100)
             )
             screen.blit(text, (panel.x + 42, y))
             y += 22

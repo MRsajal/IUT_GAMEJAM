@@ -16,6 +16,7 @@ MAP_HEIGHT = 320
 TILE_SIZE = 16
 WALKABLE_TILE = 142
 PLAYER_SPAWN = (80, 100)
+MAP3_RETURN_SPAWN = (MAP_WIDTH - 80, 100)
 SLIME_SPAWN_INTERVAL = 5.0
 SLIME_POINTS = 5
 SLIME_DROP_CHANCE = 0.70
@@ -63,17 +64,20 @@ def create_emberstone(slime, ground_y):
     return None
 
 
-def map2(player=None):
+def map2(player=None, arrived_from=None):
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("Map 2")
     clock = pygame.time.Clock()
 
     map_surface = load_map()
     platform_rects = create_platform_rects()
+    entry_spawn = (
+        MAP3_RETURN_SPAWN if arrived_from == "map3" else PLAYER_SPAWN
+    )
     if player is None:
-        player = Player(*PLAYER_SPAWN)
+        player = Player(*entry_spawn)
     else:
-        player.set_position(*PLAYER_SPAWN)
+        player.set_position(*entry_spawn)
 
     # Place the return portal above the leftmost platform.
     left_edge_platforms = [
@@ -82,7 +86,18 @@ def map2(player=None):
     portal_bottom = min(
         (rect.top for rect in left_edge_platforms), default=MAP_HEIGHT
     )
-    portal = Portal(center_x=24, bottom_y=portal_bottom)
+    return_portal = Portal(center_x=24, bottom_y=portal_bottom)
+
+    right_edge_platforms = [
+        rect for rect in platform_rects if rect.right == MAP_WIDTH
+    ]
+    exit_portal_bottom = min(
+        (rect.top for rect in right_edge_platforms), default=MAP_HEIGHT
+    )
+    exit_portal = Portal(
+        center_x=MAP_WIDTH - 24,
+        bottom_y=exit_portal_bottom,
+    )
 
     ground_y = min(
         (rect.top for rect in platform_rects), default=MAP_HEIGHT
@@ -97,6 +112,7 @@ def map2(player=None):
     camera_x = 0.0
     running = True
     next_map = None
+    next_arrival_from = None
 
     while running:
         delta_time = clock.tick(60) / 1000
@@ -115,7 +131,8 @@ def map2(player=None):
 
         if not player.ui_open:
             player.update(delta_time, platform_rects, MAP_WIDTH, slimes)
-        portal.update(delta_time)
+        return_portal.update(delta_time)
+        exit_portal.update(delta_time)
 
         # Reward defeated enemies and roll for their item drops.
         defeated_slimes = [slime for slime in slimes if not slime.alive]
@@ -153,13 +170,23 @@ def map2(player=None):
         if player.death_animation_finished:
             player.respawn(*PLAYER_SPAWN)
             next_map = "map1"
+            next_arrival_from = None
             running = False
         elif (
             not player.is_dead
             and not player.ui_open
-            and player.rect.colliderect(portal.rect)
+            and player.rect.colliderect(return_portal.rect)
         ):
             next_map = "map1"
+            next_arrival_from = "map2"
+            running = False
+        elif (
+            not player.is_dead
+            and not player.ui_open
+            and player.rect.colliderect(exit_portal.rect)
+        ):
+            next_map = "map3"
+            next_arrival_from = "map2"
             running = False
 
         # Follow the player while keeping the camera inside the map.
@@ -171,7 +198,8 @@ def map2(player=None):
             round(camera_x), 0, SCREEN_WIDTH, SCREEN_HEIGHT
         )
         screen.blit(map_surface, (0, 0), camera_area)
-        portal.draw(screen, camera_x)
+        return_portal.draw(screen, camera_x)
+        exit_portal.draw(screen, camera_x)
         for emberstone in emberstones_on_ground:
             emberstone.draw(screen, camera_x)
         for slime in slimes:
@@ -182,4 +210,4 @@ def map2(player=None):
 
         pygame.display.flip()
 
-    return next_map, player
+    return next_map, player, next_arrival_from
