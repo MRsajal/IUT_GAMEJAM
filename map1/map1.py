@@ -96,22 +96,31 @@ def map1(player=None):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-            elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                running = False
+            else:
+                event_consumed = player.handle_event(event)
+                if (
+                    not event_consumed
+                    and event.type == pygame.KEYDOWN
+                    and event.key == pygame.K_ESCAPE
+                ):
+                    running = False
 
-            player.handle_event(event)
-
-        player.update(
-            delta_time, platform_rects, MAP_WIDTH, damage_targets
-        )
+        if not player.ui_open:
+            player.update(
+                delta_time, platform_rects, MAP_WIDTH, damage_targets
+            )
         spawn_portal.update(delta_time)
         exit_portal.update(delta_time)
 
-        if player.health <= 0:
+        if player.death_animation_finished:
             player.respawn(*PLAYER_SPAWN)
             next_map = "map1"
             running = False
-        elif player.rect.colliderect(exit_portal.rect):
+        elif (
+            not player.is_dead
+            and not player.ui_open
+            and player.rect.colliderect(exit_portal.rect)
+        ):
             next_map = "map2"
             running = False
 
@@ -128,6 +137,7 @@ def map1(player=None):
         exit_portal.draw(screen, camera_x)
         player.draw(screen, camera_x)
         player.draw_health_bar(screen)
+        player.draw_active_screen(screen)
 
         pygame.display.flip()
 

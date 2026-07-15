@@ -5,7 +5,7 @@ import pygame
 
 from player import Player
 from portal import Portal
-from slime import Slime, SlimeDrop
+from slime import Emberstone, Slime
 from .platform import platform
 
 
@@ -55,10 +55,10 @@ def create_platform_rects():
     return platform_rects
 
 
-def create_slime_drop(slime, ground_y):
-    """Return a drop for a defeated slime based on its 70% drop chance."""
+def create_emberstone(slime, ground_y):
+    """Return an Emberstone based on the slime's 70% drop chance."""
     if random.random() < SLIME_DROP_CHANCE:
-        return SlimeDrop(center_x=slime.rect.centerx, bottom_y=ground_y)
+        return Emberstone(center_x=slime.rect.centerx, bottom_y=ground_y)
 
     return None
 
@@ -91,7 +91,7 @@ def map2(player=None):
         Slime(center_x=x, bottom_y=ground_y)
         for x in INITIAL_SLIME_POSITIONS
     ]
-    slime_drops = []
+    emberstones_on_ground = []
     slime_spawn_timer = 0.0
 
     camera_x = 0.0
@@ -104,53 +104,61 @@ def map2(player=None):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-            elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                running = False
+            else:
+                event_consumed = player.handle_event(event)
+                if (
+                    not event_consumed
+                    and event.type == pygame.KEYDOWN
+                    and event.key == pygame.K_ESCAPE
+                ):
+                    running = False
 
-            player.handle_event(event)
-
-        player.update(
-            delta_time, platform_rects, MAP_WIDTH, slimes
-        )
+        if not player.ui_open:
+            player.update(delta_time, platform_rects, MAP_WIDTH, slimes)
         portal.update(delta_time)
 
         # Reward defeated enemies and roll for their item drops.
         defeated_slimes = [slime for slime in slimes if not slime.alive]
         for slime in defeated_slimes:
             player.add_points(SLIME_POINTS)
-            slime_drop = create_slime_drop(slime, ground_y)
-            if slime_drop is not None:
-                slime_drops.append(slime_drop)
+            emberstone = create_emberstone(slime, ground_y)
+            if emberstone is not None:
+                emberstones_on_ground.append(emberstone)
 
         slimes = [slime for slime in slimes if slime.alive]
 
-        for slime in slimes:
-            slime.update(delta_time, player, MAP_WIDTH)
+        if not player.ui_open and not player.is_dead:
+            for slime in slimes:
+                slime.update(delta_time, player, MAP_WIDTH)
 
-        slime_spawn_timer += delta_time
-        while slime_spawn_timer >= SLIME_SPAWN_INTERVAL:
-            slime_spawn_timer -= SLIME_SPAWN_INTERVAL
-            random_x = random.randint(100, MAP_WIDTH - 30)
-            slimes.append(Slime(center_x=random_x, bottom_y=ground_y))
+            slime_spawn_timer += delta_time
+            while slime_spawn_timer >= SLIME_SPAWN_INTERVAL:
+                slime_spawn_timer -= SLIME_SPAWN_INTERVAL
+                random_x = random.randint(100, MAP_WIDTH - 30)
+                slimes.append(Slime(center_x=random_x, bottom_y=ground_y))
 
-        collected_drops = [
-            slime_drop
-            for slime_drop in slime_drops
-            if player.rect.colliderect(slime_drop.rect)
+        collected_emberstones = [
+            emberstone
+            for emberstone in emberstones_on_ground
+            if player.rect.colliderect(emberstone.rect)
         ]
-        if collected_drops:
-            player.collect_drops(len(collected_drops))
-            slime_drops = [
-                slime_drop
-                for slime_drop in slime_drops
-                if slime_drop not in collected_drops
+        if collected_emberstones:
+            player.collect_emberstones(len(collected_emberstones))
+            emberstones_on_ground = [
+                emberstone
+                for emberstone in emberstones_on_ground
+                if emberstone not in collected_emberstones
             ]
 
-        if player.health <= 0:
+        if player.death_animation_finished:
             player.respawn(*PLAYER_SPAWN)
             next_map = "map1"
             running = False
-        elif player.rect.colliderect(portal.rect):
+        elif (
+            not player.is_dead
+            and not player.ui_open
+            and player.rect.colliderect(portal.rect)
+        ):
             next_map = "map1"
             running = False
 
@@ -164,12 +172,13 @@ def map2(player=None):
         )
         screen.blit(map_surface, (0, 0), camera_area)
         portal.draw(screen, camera_x)
-        for slime_drop in slime_drops:
-            slime_drop.draw(screen, camera_x)
+        for emberstone in emberstones_on_ground:
+            emberstone.draw(screen, camera_x)
         for slime in slimes:
             slime.draw(screen, camera_x)
         player.draw(screen, camera_x)
         player.draw_health_bar(screen)
+        player.draw_active_screen(screen)
 
         pygame.display.flip()
 

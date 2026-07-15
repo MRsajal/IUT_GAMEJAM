@@ -8,17 +8,35 @@ GRAVITY = 1000
 IDLE_ANIMATION_SPEED = 8
 ATTACK_ANIMATION_SPEED = 12
 ATTACK_FRAME_COUNT = 5
+DAMAGE_ANIMATION_SPEED = 12
+DAMAGE_FRAME_COUNT = 3
+DEATH_ANIMATION_SPEED = 10
+DEATH_FRAME_COUNT = 11
 STARTING_HEALTH = 50
 STARTING_ATTACK_DAMAGE = 20
 POINTS_PER_LEVEL = 100
 HEALTH_PER_LEVEL = 10
 ATTACK_DAMAGE_PER_LEVEL = 5
+DEATH_POINT_PENALTY = 10
 ATTACK_RANGE = 20
 ATTACK_DURATION = ATTACK_FRAME_COUNT / ATTACK_ANIMATION_SPEED
 ATTACK_COOLDOWN = 0.5
+DAMAGE_DURATION = DAMAGE_FRAME_COUNT / DAMAGE_ANIMATION_SPEED
+DEATH_DURATION = DEATH_FRAME_COUNT / DEATH_ANIMATION_SPEED
 
 IDLE_PATH = Path(__file__).parent / "idle"
 ATTACK_PATH = Path(__file__).parent / "attack"
+DAMAGE_PATH = Path(__file__).parent / "damage"
+DEATH_PATH = Path(__file__).parent / "death"
+
+# Add future magic recipes to this array.
+MAGIC_RECIPES = [
+    {
+        "name": "Fire Magic",
+        "required_level": 2,
+        "emberstone_cost": 2,
+    },
+]
 
 
 class Player:
@@ -32,6 +50,20 @@ class Player:
         self.attack_left = [
             pygame.transform.flip(frame, True, False)
             for frame in self.attack_right
+        ]
+        self.damage_right = self._load_frames(
+            DAMAGE_PATH, DAMAGE_FRAME_COUNT
+        )
+        self.damage_left = [
+            pygame.transform.flip(frame, True, False)
+            for frame in self.damage_right
+        ]
+        self.death_right = self._load_frames(
+            DEATH_PATH, DEATH_FRAME_COUNT
+        )
+        self.death_left = [
+            pygame.transform.flip(frame, True, False)
+            for frame in self.death_right
         ]
 
         # The collision box is slightly narrower than the sprite.
@@ -48,12 +80,20 @@ class Player:
         self.attack_damage = STARTING_ATTACK_DAMAGE
         self.points = 0
         self.next_level_points = POINTS_PER_LEVEL
-        self.collected_drops = 0
+        self.emberstones = 0
+        self.held_magic = []
+        self.active_screen = None
+        self.craft_message = ""
 
         self.attack_time_left = 0.0
         self.attack_cooldown_left = 0.0
         self.attack_has_dealt_damage = False
+        self.damage_time_left = 0.0
+        self.death_animation_time = 0.0
+        self.death_animation_finished = False
         self.ui_font = pygame.font.Font(None, 20)
+        self.menu_font = pygame.font.Font(None, 24)
+        self.menu_title_font = pygame.font.Font(None, 34)
 
     def _load_idle_frames(self):
         frames = []
@@ -73,15 +113,104 @@ class Player:
 
         return frames
 
+    def _load_frames(self, folder, frame_count):
+        frames = []
+
+        for frame_number in range(frame_count):
+            path = folder / f"{frame_number}.png"
+            frames.append(pygame.image.load(path).convert_alpha())
+
+        return frames
+
     def handle_event(self, event):
-        if (
-            event.type == pygame.KEYDOWN
-            and event.key == pygame.K_SPACE
-            and self.attack_cooldown_left <= 0
-        ):
+        """Handle player controls and return True when an event is consumed."""
+        if event.type != pygame.KEYDOWN:
+            return False
+
+        if self.is_dead or self.is_taking_damage:
+            return False
+
+        if event.key == pygame.K_c:
+            self.active_screen = (
+                None if self.active_screen == "craft" else "craft"
+            )
+            self.craft_message = ""
+            return True
+
+        if event.key == pygame.K_m:
+            self.active_screen = (
+                None if self.active_screen == "menu" else "menu"
+            )
+            return True
+
+        if event.key == pygame.K_ESCAPE and self.active_screen is not None:
+            self.active_screen = None
+            return True
+
+        if self.active_screen == "craft":
+            if event.key in (pygame.K_1, pygame.K_RETURN, pygame.K_KP_ENTER):
+                self.craft_magic("Fire Magic")
+            return True
+
+        if self.active_screen is not None:
+            return True
+
+        if event.key == pygame.K_SPACE and self.attack_cooldown_left <= 0:
             self.attack_time_left = ATTACK_DURATION
             self.attack_cooldown_left = ATTACK_COOLDOWN
             self.attack_has_dealt_damage = False
+            return True
+
+        return False
+
+    @property
+    def ui_open(self):
+        return self.active_screen is not None
+
+    @property
+    def craftable_magic(self):
+        return [
+            recipe["name"]
+            for recipe in MAGIC_RECIPES
+            if self.level >= recipe["required_level"]
+        ]
+
+    @property
+    def collected_drops(self):
+        """Compatibility alias; Map 2 drops are now Emberstones."""
+        return self.emberstones
+
+    def craft_magic(self, magic_name):
+        recipe = next(
+            (
+                item
+                for item in MAGIC_RECIPES
+                if item["name"] == magic_name
+            ),
+            None,
+        )
+
+        if recipe is None:
+            self.craft_message = "Unknown magic."
+            return False
+        if self.level < recipe["required_level"]:
+            self.craft_message = (
+                f"Unlocks at level {recipe['required_level']}."
+            )
+            return False
+        if magic_name in self.held_magic:
+            self.craft_message = f"You already hold {magic_name}."
+            return False
+        if self.emberstones < recipe["emberstone_cost"]:
+            self.craft_message = (
+                f"Need {recipe['emberstone_cost']} Emberstones."
+            )
+            return False
+
+        self.emberstones -= recipe["emberstone_cost"]
+        self.held_magic.append(magic_name)
+        self.craft_message = f"Crafted {magic_name}!"
+        return True
 
     def get_attack_rect(self):
         """Return the attack area in world coordinates."""
@@ -103,6 +232,14 @@ class Player:
     @property
     def is_attacking(self):
         return self.attack_time_left > 0
+
+    @property
+    def is_taking_damage(self):
+        return self.damage_time_left > 0 and not self.is_dead
+
+    @property
+    def is_dead(self):
+        return self.health <= 0
 
     def _update_attack(self, delta_time, damage_targets):
         self.attack_cooldown_left = max(
@@ -133,7 +270,26 @@ class Player:
 
     def take_damage(self, amount):
         """Reduce player health without allowing it to go below zero."""
-        self.health = max(0, self.health - max(0, amount))
+        if self.is_dead or self.is_taking_damage:
+            return False
+
+        damage = max(0, amount)
+        if damage == 0:
+            return False
+
+        self.health = max(0, self.health - damage)
+        self.attack_time_left = 0.0
+        self.attack_has_dealt_damage = False
+
+        if self.is_dead:
+            self.damage_time_left = 0.0
+            self.death_animation_time = 0.0
+            self.death_animation_finished = False
+            self.active_screen = None
+        else:
+            self.damage_time_left = DAMAGE_DURATION
+
+        return True
 
     def level_up(self, health_increase, attack_damage_increase):
         """Increase level and apply progression values chosen by the game."""
@@ -153,8 +309,15 @@ class Player:
             self.level_up(HEALTH_PER_LEVEL, ATTACK_DAMAGE_PER_LEVEL)
             self.next_level_points += POINTS_PER_LEVEL
 
+    def lose_points(self, amount):
+        self.points = max(0, self.points - max(0, amount))
+
+    def collect_emberstones(self, amount=1):
+        self.emberstones += max(0, amount)
+
     def collect_drops(self, amount=1):
-        self.collected_drops += max(0, amount)
+        """Compatibility method for existing Map 2 code."""
+        self.collect_emberstones(amount)
 
     def set_position(self, x, y):
         """Move to a map spawn without resetting player stats."""
@@ -163,23 +326,40 @@ class Player:
         self.velocity_y = 0.0
         self.attack_time_left = 0.0
         self.attack_cooldown_left = 0.0
+        self.damage_time_left = 0.0
+        self.death_animation_time = 0.0
+        self.death_animation_finished = False
+        self.active_screen = None
+        self.craft_message = ""
 
     def respawn(self, x, y):
         """Restore health while preserving level, points, and drops."""
+        self.lose_points(DEATH_POINT_PENALTY)
         self.health = self.max_health
         self.set_position(x, y)
 
     def update(self, delta_time, platform_rects, map_width, damage_targets=()):
+        if self.is_dead:
+            self.death_animation_time = min(
+                DEATH_DURATION,
+                self.death_animation_time + delta_time,
+            )
+            self.death_animation_finished = (
+                self.death_animation_time >= DEATH_DURATION
+            )
+            return
+
         keys = pygame.key.get_pressed()
         direction = 0
 
-        if keys[pygame.K_a] or keys[pygame.K_LEFT]:
-            direction -= 1
-            self.facing_right = False
+        if not self.is_taking_damage:
+            if keys[pygame.K_a] or keys[pygame.K_LEFT]:
+                direction -= 1
+                self.facing_right = False
 
-        if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
-            direction += 1
-            self.facing_right = True
+            if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
+                direction += 1
+                self.facing_right = True
 
         # Horizontal player movement.
         self.position.x += direction * PLAYER_SPEED * delta_time
@@ -212,10 +392,34 @@ class Player:
                     break
 
         self.animation_time += delta_time
-        self._update_attack(delta_time, damage_targets)
+        if self.is_taking_damage:
+            self.damage_time_left = max(
+                0, self.damage_time_left - delta_time
+            )
+        else:
+            self._update_attack(delta_time, damage_targets)
 
     def draw(self, screen, camera_x):
-        if self.is_attacking:
+        if self.is_dead:
+            frames = (
+                self.death_right if self.facing_right else self.death_left
+            )
+            frame_index = min(
+                int(self.death_animation_time * DEATH_ANIMATION_SPEED),
+                len(frames) - 1,
+            )
+        elif self.is_taking_damage:
+            frames = (
+                self.damage_right
+                if self.facing_right
+                else self.damage_left
+            )
+            damage_elapsed = DAMAGE_DURATION - self.damage_time_left
+            frame_index = min(
+                int(damage_elapsed * DAMAGE_ANIMATION_SPEED),
+                len(frames) - 1,
+            )
+        elif self.is_attacking:
             frames = (
                 self.attack_right if self.facing_right else self.attack_left
             )
@@ -268,9 +472,108 @@ class Player:
         points_label = self.ui_font.render(
             (
                 f"Points: {self.points}/{self.next_level_points}"
-                f"   Drops: {self.collected_drops}"
+                f"   Emberstones: {self.emberstones}"
             ),
             True,
             (255, 235, 120),
         )
         screen.blit(points_label, (bar_x, bar_y + bar_height + 3))
+
+    def draw_active_screen(self, screen):
+        if self.active_screen is None:
+            return
+
+        screen_width, screen_height = screen.get_size()
+        overlay = pygame.Surface(
+            (screen_width, screen_height), pygame.SRCALPHA
+        )
+        overlay.fill((0, 0, 0, 175))
+        screen.blit(overlay, (0, 0))
+
+        panel = pygame.Rect(90, 42, screen_width - 180, screen_height - 84)
+        pygame.draw.rect(screen, (28, 31, 48), panel, border_radius=10)
+        pygame.draw.rect(
+            screen, (225, 190, 90), panel, 2, border_radius=10
+        )
+
+        if self.active_screen == "craft":
+            self._draw_crafting_screen(screen, panel)
+        else:
+            self._draw_player_menu(screen, panel)
+
+    def _draw_crafting_screen(self, screen, panel):
+        title = self.menu_title_font.render(
+            "Magic Crafting", True, (255, 220, 110)
+        )
+        screen.blit(title, (panel.x + 24, panel.y + 18))
+
+        emberstone_text = self.menu_font.render(
+            f"Emberstones: {self.emberstones}", True, (240, 240, 240)
+        )
+        screen.blit(emberstone_text, (panel.x + 24, panel.y + 58))
+
+        recipe = MAGIC_RECIPES[0]
+        if self.level < recipe["required_level"]:
+            recipe_line = "Fire Magic - Locked until level 2"
+            recipe_color = (160, 160, 170)
+            instruction = "No magic can be crafted yet."
+        elif recipe["name"] in self.held_magic:
+            recipe_line = "Fire Magic - Crafted"
+            recipe_color = (100, 220, 140)
+            instruction = "You already hold this magic."
+        else:
+            recipe_line = "1. Fire Magic - 2 Emberstones"
+            recipe_color = (255, 145, 80)
+            instruction = "Press 1 or ENTER to craft."
+
+        recipe_text = self.menu_font.render(
+            recipe_line, True, recipe_color
+        )
+        screen.blit(recipe_text, (panel.x + 24, panel.y + 98))
+
+        instruction_text = self.ui_font.render(
+            instruction, True, (220, 220, 225)
+        )
+        screen.blit(instruction_text, (panel.x + 24, panel.y + 130))
+
+        if self.craft_message:
+            message = self.ui_font.render(
+                self.craft_message, True, (255, 235, 120)
+            )
+            screen.blit(message, (panel.x + 24, panel.y + 158))
+
+        close_text = self.ui_font.render(
+            "Press C or ESC to close", True, (175, 180, 195)
+        )
+        screen.blit(close_text, (panel.x + 24, panel.bottom - 28))
+
+    def _draw_player_menu(self, screen, panel):
+        title = self.menu_title_font.render(
+            "Player Menu", True, (150, 210, 255)
+        )
+        screen.blit(title, (panel.x + 24, panel.y + 18))
+
+        details = [
+            f"Level: {self.level}",
+            f"Points: {self.points} / {self.next_level_points}",
+            f"Emberstones: {self.emberstones}",
+            "Magic held:",
+        ]
+        y = panel.y + 58
+        for detail in details:
+            text = self.menu_font.render(detail, True, (235, 235, 240))
+            screen.blit(text, (panel.x + 24, y))
+            y += 27
+
+        magic_names = self.held_magic or ["None"]
+        for magic_name in magic_names:
+            text = self.ui_font.render(
+                f"- {magic_name}", True, (255, 170, 100)
+            )
+            screen.blit(text, (panel.x + 42, y))
+            y += 22
+
+        close_text = self.ui_font.render(
+            "Press M or ESC to close", True, (175, 180, 195)
+        )
+        screen.blit(close_text, (panel.x + 24, panel.bottom - 28))
