@@ -5,6 +5,7 @@ import pygame
 
 PLAYER_SPEED = 180
 GRAVITY = 1000
+JUMP_SPEED = 300
 IDLE_ANIMATION_SPEED = 8
 ATTACK_ANIMATION_SPEED = 12
 ATTACK_FRAME_COUNT = 5
@@ -70,6 +71,7 @@ class Player:
         self.rect = pygame.Rect(x, y, 24, 40)
         self.position = pygame.Vector2(self.rect.topleft)
         self.velocity_y = 0.0
+        self.on_ground = False
         self.facing_right = True
         self.animation_time = 0.0
 
@@ -155,6 +157,11 @@ class Player:
         if self.active_screen is not None:
             return True
 
+        if event.key in (pygame.K_w, pygame.K_UP) and self.on_ground:
+            self.velocity_y = -JUMP_SPEED
+            self.on_ground = False
+            return True
+
         if event.key == pygame.K_SPACE and self.attack_cooldown_left <= 0:
             self.attack_time_left = ATTACK_DURATION
             self.attack_cooldown_left = ATTACK_COOLDOWN
@@ -216,16 +223,16 @@ class Player:
         """Return the attack area in world coordinates."""
         if self.facing_right:
             return pygame.Rect(
-                self.rect.right,
+                self.rect.left,
                 self.rect.top,
-                ATTACK_RANGE,
+                self.rect.width + ATTACK_RANGE,
                 self.rect.height,
             )
 
         return pygame.Rect(
             self.rect.left - ATTACK_RANGE,
             self.rect.top,
-            ATTACK_RANGE,
+            self.rect.width + ATTACK_RANGE,
             self.rect.height,
         )
 
@@ -324,6 +331,7 @@ class Player:
         self.rect.topleft = (x, y)
         self.position.update(self.rect.topleft)
         self.velocity_y = 0.0
+        self.on_ground = False
         self.attack_time_left = 0.0
         self.attack_cooldown_left = 0.0
         self.damage_time_left = 0.0
@@ -373,6 +381,7 @@ class Player:
         self.velocity_y += GRAVITY * delta_time
         self.position.y += self.velocity_y * delta_time
         self.rect.y = round(self.position.y)
+        self.on_ground = False
 
         if self.velocity_y >= 0:
             for platform_rect in platform_rects:
@@ -389,6 +398,7 @@ class Player:
                     self.rect.bottom = platform_rect.top
                     self.position.y = self.rect.y
                     self.velocity_y = 0
+                    self.on_ground = True
                     break
 
         self.animation_time += delta_time
