@@ -4,6 +4,7 @@ import random
 import pygame
 
 from player import Player
+from npc2 import MissionNPC
 from portal import Portal
 from toads import Toad
 from .object import object as object_layer
@@ -126,6 +127,17 @@ def create_boss_toad(platform_rects):
     return Toad(last_marker_right, zone_right, ground_y, is_boss=True)
 
 
+def create_all_toads(platform_rects):
+    toads = [
+        Toad(zone_left, zone_right, ground_y)
+        for zone_left, zone_right, ground_y in create_toad_zones(
+            platform_rects
+        )
+    ]
+    toads.append(create_boss_toad(platform_rects))
+    return toads
+
+
 def create_wind_crystal(toad):
     if random.random() < WIND_CRYSTAL_DROP_CHANCE:
         return WindCrystal(toad.rect.centerx, toad.rect.bottom)
@@ -154,13 +166,28 @@ def map3(player=None, arrived_from=None):
     )
     return_portal = Portal(center_x=24, bottom_y=portal_bottom)
 
-    toads = [
-        Toad(zone_left, zone_right, ground_y)
-        for zone_left, zone_right, ground_y in create_toad_zones(
-            platform_rects
-        )
-    ]
-    toads.append(create_boss_toad(platform_rects))
+    rightmost_platform_edge = max(rect.right for rect in platform_rects)
+    end_portal_bottom = min(
+        rect.top
+        for rect in platform_rects
+        if rect.right == rightmost_platform_edge
+    )
+    end_portal = Portal(
+        center_x=rightmost_platform_edge - 24,
+        bottom_y=end_portal_bottom,
+    )
+
+    boss_spawn = create_boss_toad(platform_rects)
+    mission_npc = MissionNPC(
+        center_x=boss_spawn.rect.centerx,
+        bottom_y=boss_spawn.rect.bottom,
+    )
+
+    boss_defeated = player.map3_cleared
+    if boss_defeated:
+        toads = []
+    else:
+        toads = create_all_toads(platform_rects)
     wind_crystals_on_ground = []
 
     camera_x = 0.0
@@ -175,7 +202,29 @@ def map3(player=None, arrived_from=None):
             if event.type == pygame.QUIT:
                 running = False
             else:
-                event_consumed = player.handle_event(event)
+                event_consumed = False
+                npc_action = None
+                if mission_npc.active:
+                    event_consumed, npc_action = (
+                        mission_npc.handle_event(event, player)
+                    )
+                elif (
+                    boss_defeated
+                    and event.type == pygame.KEYDOWN
+                    and event.key == pygame.K_e
+                    and mission_npc.can_talk(player)
+                ):
+                    mission_npc.open(player)
+                    event_consumed = True
+                else:
+                    event_consumed = player.handle_event(event)
+
+                if npc_action == "restart":
+                    player.map3_cleared = False
+                    boss_defeated = False
+                    toads = create_all_toads(platform_rects)
+                    wind_crystals_on_ground.clear()
+                    player.set_position(*PLAYER_SPAWN)
                 if (
                     not event_consumed
                     and event.type == pygame.KEYDOWN
@@ -183,7 +232,8 @@ def map3(player=None, arrived_from=None):
                 ):
                     running = False
 
-        if not player.ui_open:
+        game_ui_open = player.ui_open or mission_npc.active
+        if not game_ui_open:
             player.update(
                 delta_time,
                 platform_rects,
@@ -192,14 +242,29 @@ def map3(player=None, arrived_from=None):
                 object_rects,
             )
         return_portal.update(delta_time)
+        if boss_defeated:
+            end_portal.update(delta_time)
+            mission_npc.update(delta_time)
 
-        defeated_toads = [toad for toad in toads if not toad.alive]
-        for toad in defeated_toads:
-            wind_crystal = create_wind_crystal(toad)
-            if wind_crystal is not None:
-                wind_crystals_on_ground.append(wind_crystal)
-        toads = [toad for toad in toads if toad.alive]
-        if not player.ui_open and not player.is_dead:
+        # Keep defeated sprites visible until the attack animation completes.
+        if not player.is_attacking and not player.is_casting_fire:
+            defeated_toads = [
+                toad for toad in toads if not toad.alive
+            ]
+            boss_was_defeated = any(
+                toad.is_boss for toad in defeated_toads
+            )
+            for toad in defeated_toads:
+                wind_crystal = create_wind_crystal(toad)
+                if wind_crystal is not None:
+                    wind_crystals_on_ground.append(wind_crystal)
+
+            toads = [toad for toad in toads if toad.alive]
+            if boss_was_defeated:
+                boss_defeated = True
+                player.map3_cleared = True
+                toads.clear()
+        if not game_ui_open and not player.is_dead:
             for toad in toads:
                 toad.update(delta_time, player)
 
@@ -223,7 +288,7 @@ def map3(player=None, arrived_from=None):
             running = False
         elif (
             not player.is_dead
-            and not player.ui_open
+            and not game_ui_open
             and player.rect.colliderect(return_portal.rect)
         ):
             next_map = "map2"
@@ -238,13 +303,19 @@ def map3(player=None, arrived_from=None):
         )
         screen.blit(map_surface, (0, 0), camera_area)
         return_portal.draw(screen, camera_x)
+        if boss_defeated:
+            end_portal.draw(screen, camera_x)
         for crystal in wind_crystals_on_ground:
             crystal.draw(screen, camera_x)
         for toad in toads:
             toad.draw(screen, camera_x)
+        if boss_defeated and not mission_npc.active:
+            mission_npc.draw(screen, camera_x, player)
         player.draw(screen, camera_x)
         player.draw_health_bar(screen)
         player.draw_active_screen(screen)
+        if boss_defeated and mission_npc.active:
+            mission_npc.draw(screen, camera_x, player)
 
         pygame.display.flip()
 

@@ -22,7 +22,7 @@ HEALTH_PER_LEVEL = 10
 ATTACK_DAMAGE_PER_LEVEL = 5
 DEATH_POINT_PENALTY = 10
 ATTACK_RANGE = 20
-FIRE_RANGE = 100
+FIRE_RANGE = 80
 FIRE_DAMAGE = 25
 ATTACK_DURATION = ATTACK_FRAME_COUNT / ATTACK_ANIMATION_SPEED
 ATTACK_COOLDOWN = 0.5
@@ -43,6 +43,12 @@ MAGIC_RECIPES = [
         "name": "Fire Magic",
         "required_level": 2,
         "emberstone_cost": 2,
+        "uses_per_craft": 3,
+    },
+    {
+        "name": "Wind Magic",
+        "required_level": 3,
+        "wind_crystal_cost": 2,
         "uses_per_craft": 3,
     },
 ]
@@ -98,7 +104,9 @@ class Player:
         self.emberstones = 0
         self.wind_crystals = 0
         self.held_magic = []
-        self.magic_uses = {"Fire Magic": 0}
+        self.magic_uses = {"Fire Magic": 0, "Wind Magic": 0}
+        self.money = 0
+        self.map3_cleared = False
         self.active_screen = None
         self.craft_message = ""
 
@@ -170,6 +178,8 @@ class Player:
         if self.active_screen == "craft":
             if event.key in (pygame.K_1, pygame.K_RETURN, pygame.K_KP_ENTER):
                 self.craft_magic("Fire Magic")
+            elif event.key == pygame.K_2:
+                self.craft_magic("Wind Magic")
             return True
 
         if self.active_screen is not None:
@@ -240,13 +250,21 @@ class Player:
                 f"Unlocks at level {recipe['required_level']}."
             )
             return False
-        if self.emberstones < recipe["emberstone_cost"]:
+        emberstone_cost = recipe.get("emberstone_cost", 0)
+        wind_crystal_cost = recipe.get("wind_crystal_cost", 0)
+        if self.emberstones < emberstone_cost:
             self.craft_message = (
-                f"Need {recipe['emberstone_cost']} Emberstones."
+                f"Need {emberstone_cost} Emberstones."
+            )
+            return False
+        if self.wind_crystals < wind_crystal_cost:
+            self.craft_message = (
+                f"Need {wind_crystal_cost} Wind Crystals."
             )
             return False
 
-        self.emberstones -= recipe["emberstone_cost"]
+        self.emberstones -= emberstone_cost
+        self.wind_crystals -= wind_crystal_cost
         self.held_magic.append(magic_name)
         uses_added = recipe.get("uses_per_craft", 1)
         self.magic_uses[magic_name] = (
@@ -277,6 +295,32 @@ class Player:
         while self.held_magic.count(magic_name) > copies_needed:
             self.held_magic.remove(magic_name)
 
+    def sell_magic(self, magic_name, amount, price_per_spell):
+        """Sell complete crafted spells and remove their remaining uses."""
+        amount = max(0, int(amount))
+        price_per_spell = max(0, int(price_per_spell))
+        if amount == 0 or self.held_magic.count(magic_name) < amount:
+            return False
+
+        recipe = next(
+            (
+                item
+                for item in MAGIC_RECIPES
+                if item["name"] == magic_name
+            ),
+            None,
+        )
+        uses_per_craft = recipe.get("uses_per_craft", 1) if recipe else 1
+
+        for _ in range(amount):
+            self.held_magic.remove(magic_name)
+        self.magic_uses[magic_name] = max(
+            0,
+            self.magic_uses.get(magic_name, 0) - amount * uses_per_craft,
+        )
+        self.money += amount * price_per_spell
+        return True
+
     def get_attack_rect(self):
         """Return the attack area in world coordinates."""
         if self.facing_right:
@@ -295,7 +339,7 @@ class Player:
         )
 
     def get_fire_attack_rect(self):
-        """Return the 100-pixel Fire Magic area in world coordinates."""
+        """Return the 80-pixel Fire Magic area in world coordinates."""
         if self.facing_right:
             return pygame.Rect(
                 self.rect.left,
@@ -640,11 +684,7 @@ class Player:
         screen.blit(label, (bar_x + 4, bar_y - 1))
 
         points_label = self.ui_font.render(
-            (
-                f"Points: {self.points}/{self.next_level_points}"
-                f"   Emberstones: {self.emberstones}"
-                f"   Wind: {self.wind_crystals}"
-            ),
+            f"Points: {self.points}/{self.next_level_points}",
             True,
             (255, 235, 120),
         )
@@ -661,7 +701,7 @@ class Player:
         overlay.fill((0, 0, 0, 175))
         screen.blit(overlay, (0, 0))
 
-        panel = pygame.Rect(90, 42, screen_width - 180, screen_height - 84)
+        panel = pygame.Rect(70, 20, screen_width - 140, screen_height - 40)
         pygame.draw.rect(screen, (28, 31, 48), panel, border_radius=10)
         pygame.draw.rect(
             screen, (225, 190, 90), panel, 2, border_radius=10
@@ -678,36 +718,54 @@ class Player:
         )
         screen.blit(title, (panel.x + 24, panel.y + 18))
 
-        emberstone_text = self.menu_font.render(
-            f"Emberstones: {self.emberstones}", True, (240, 240, 240)
-        )
-        screen.blit(emberstone_text, (panel.x + 24, panel.y + 58))
-
-        recipe = MAGIC_RECIPES[0]
-        if self.level < recipe["required_level"]:
-            recipe_line = "Fire Magic - Locked until level 2"
-            recipe_color = (160, 160, 170)
-            instruction = "No magic can be crafted yet."
+        unlocked_recipes = [
+            recipe
+            for recipe in MAGIC_RECIPES
+            if self.level >= recipe["required_level"]
+        ]
+        recipe_y = panel.y + 64
+        if not unlocked_recipes:
+            no_magic = self.menu_font.render(
+                "No magic can be crafted yet.",
+                True,
+                (160, 160, 170),
+            )
+            screen.blit(no_magic, (panel.x + 24, recipe_y))
         else:
-            recipe_line = "1. Fire Magic - 2 Emberstones (+3 uses)"
-            recipe_color = (255, 145, 80)
-            instruction = "Press 1 or ENTER to craft."
+            for recipe_number, recipe in enumerate(
+                unlocked_recipes, start=1
+            ):
+                if recipe["name"] == "Fire Magic":
+                    cost_text = "2 Emberstones"
+                else:
+                    cost_text = "2 Wind Crystals"
+                recipe_line = (
+                    f"{recipe_number}. {recipe['name']} - "
+                    f"{cost_text} (+3 uses)"
+                )
+                recipe_text = self.menu_font.render(
+                    recipe_line, True, (255, 145, 80)
+                )
+                screen.blit(recipe_text, (panel.x + 24, recipe_y))
+                recipe_y += 27
 
-        recipe_text = self.menu_font.render(
-            recipe_line, True, recipe_color
-        )
-        screen.blit(recipe_text, (panel.x + 24, panel.y + 98))
+        if self.level >= 3:
+            instruction = "Press 1 for Fire or 2 for Wind Magic."
+        elif self.level >= 2:
+            instruction = "Press 1 or ENTER for Fire Magic."
+        else:
+            instruction = "Reach level 2 to unlock Fire Magic."
 
         instruction_text = self.ui_font.render(
             instruction, True, (220, 220, 225)
         )
-        screen.blit(instruction_text, (panel.x + 24, panel.y + 130))
+        screen.blit(instruction_text, (panel.x + 24, panel.y + 153))
 
         if self.craft_message:
             message = self.ui_font.render(
                 self.craft_message, True, (255, 235, 120)
             )
-            screen.blit(message, (panel.x + 24, panel.y + 158))
+            screen.blit(message, (panel.x + 24, panel.y + 176))
 
         close_text = self.ui_font.render(
             "Press C or ESC to close", True, (175, 180, 195)
@@ -723,6 +781,7 @@ class Player:
         details = [
             f"Level: {self.level}",
             f"Points: {self.points} / {self.next_level_points}",
+            f"Money: {self.money}",
             f"Emberstones: {self.emberstones}",
             f"Wind Crystals: {self.wind_crystals}",
             "Magic held:",

@@ -134,15 +134,18 @@ def map2(player=None, arrived_from=None):
         return_portal.update(delta_time)
         exit_portal.update(delta_time)
 
-        # Reward defeated enemies and roll for their item drops.
-        defeated_slimes = [slime for slime in slimes if not slime.alive]
-        for slime in defeated_slimes:
-            player.add_points(SLIME_POINTS)
-            emberstone = create_emberstone(slime, ground_y)
-            if emberstone is not None:
-                emberstones_on_ground.append(emberstone)
+        # Keep defeated sprites visible until the attack animation completes.
+        if not player.is_attacking and not player.is_casting_fire:
+            defeated_slimes = [
+                slime for slime in slimes if not slime.alive
+            ]
+            for slime in defeated_slimes:
+                player.add_points(SLIME_POINTS)
+                emberstone = create_emberstone(slime, ground_y)
+                if emberstone is not None:
+                    emberstones_on_ground.append(emberstone)
 
-        slimes = [slime for slime in slimes if slime.alive]
+            slimes = [slime for slime in slimes if slime.alive]
 
         if not player.ui_open and not player.is_dead:
             for slime in slimes:
