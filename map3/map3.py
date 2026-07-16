@@ -20,6 +20,7 @@ TILE_SIZE = 16
 WALKABLE_TILE = 142
 TOAD_ZONE_MARKER = 113
 PLAYER_SPAWN = (80, 100)
+MAP4_RETURN_SPAWN = (1040, 100)
 WIND_CRYSTAL_DROP_CHANCE = 0.70
 BOSS_ZONE_WIDTH = 288
 
@@ -138,11 +139,19 @@ def create_all_toads(platform_rects):
     return toads
 
 
-def create_wind_crystal(toad):
-    if random.random() < WIND_CRYSTAL_DROP_CHANCE:
-        return WindCrystal(toad.rect.centerx, toad.rect.bottom)
+def create_wind_crystals(toad):
+    """Bosses guarantee five crystals; regular toads retain their 70% drop."""
+    if toad.is_boss:
+        offsets = (-24, -12, 0, 12, 24)
+    elif random.random() < WIND_CRYSTAL_DROP_CHANCE:
+        offsets = (0,)
+    else:
+        offsets = ()
 
-    return None
+    return [
+        WindCrystal(toad.rect.centerx + offset, toad.rect.bottom)
+        for offset in offsets
+    ]
 
 
 def map3(player=None, arrived_from=None):
@@ -153,10 +162,13 @@ def map3(player=None, arrived_from=None):
     map_surface = load_map()
     platform_rects = create_platform_rects()
     object_rects = create_object_rects()
+    spawn_position = (
+        MAP4_RETURN_SPAWN if arrived_from == "map4" else PLAYER_SPAWN
+    )
     if player is None:
-        player = Player(*PLAYER_SPAWN)
+        player = Player(*spawn_position)
     else:
-        player.set_position(*PLAYER_SPAWN)
+        player.set_position(*spawn_position)
 
     left_edge_platforms = [
         rect for rect in platform_rects if rect.left == 0
@@ -217,7 +229,9 @@ def map3(player=None, arrived_from=None):
                     mission_npc.open(player)
                     event_consumed = True
                 else:
-                    event_consumed = player.handle_event(event)
+                    event_consumed = player.handle_event(
+                        event, allow_flight_activation=True
+                    )
 
                 if npc_action == "restart":
                     player.map3_cleared = False
@@ -247,7 +261,11 @@ def map3(player=None, arrived_from=None):
             mission_npc.update(delta_time)
 
         # Keep defeated sprites visible until the attack animation completes.
-        if not player.is_attacking and not player.is_casting_fire:
+        if (
+            not player.is_attacking
+            and not player.is_casting_fire
+            and not player.is_kicking
+        ):
             defeated_toads = [
                 toad for toad in toads if not toad.alive
             ]
@@ -255,9 +273,9 @@ def map3(player=None, arrived_from=None):
                 toad.is_boss for toad in defeated_toads
             )
             for toad in defeated_toads:
-                wind_crystal = create_wind_crystal(toad)
-                if wind_crystal is not None:
-                    wind_crystals_on_ground.append(wind_crystal)
+                wind_crystals_on_ground.extend(
+                    create_wind_crystals(toad)
+                )
 
             toads = [toad for toad in toads if toad.alive]
             if boss_was_defeated:
@@ -291,9 +309,21 @@ def map3(player=None, arrived_from=None):
             and not game_ui_open
             and player.rect.colliderect(return_portal.rect)
         ):
-            next_map = "map2"
+            next_map = "map1" if player.map2_cleared else "map2"
             next_arrival_from = "map3"
             running = False
+        elif (
+            boss_defeated
+            and not player.is_dead
+            and not game_ui_open
+            and player.rect.colliderect(end_portal.rect)
+        ):
+            if player.is_flying:
+                next_map = "map4"
+                next_arrival_from = "map3"
+                running = False
+            else:
+                mission_npc.warn_about_flight(player)
 
         camera_x = player.rect.centerx - SCREEN_WIDTH / 2
         camera_x = max(0, min(camera_x, MAP_WIDTH - SCREEN_WIDTH))

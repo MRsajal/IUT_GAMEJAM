@@ -7,11 +7,12 @@ import pygame
 NPC_FRAME_COUNT = 5
 NPC_ANIMATION_SPEED = 7
 NPC_INTERACTION_RANGE = 65
+NPC_WARNING_DURATION = 2.5
 NPC_PATH = Path(__file__).parent
 REQUEST_AMOUNTS = (1, 2, 3)
 SPELL_PRICES = {
     "Fire Magic": 20,
-    "Wind Magic": 30,
+    "Fly Magic": 40,
 }
 
 
@@ -30,6 +31,8 @@ class MissionNPC:
         self.request_amount = 0
         self.message = ""
         self.previous_amount = None
+        self.warning = ""
+        self.warning_time_left = 0.0
         self.font = pygame.font.Font(None, 20)
         self.body_font = pygame.font.Font(None, 23)
         self.title_font = pygame.font.Font(None, 31)
@@ -65,7 +68,7 @@ class MissionNPC:
 
         unlocked_magic = ["Fire Magic"]
         if player.level >= 3:
-            unlocked_magic.append("Wind Magic")
+            unlocked_magic.append("Fly Magic")
         self.request_magic = random.choice(unlocked_magic)
 
         available_amounts = [
@@ -121,6 +124,16 @@ class MissionNPC:
 
     def update(self, delta_time):
         self.animation_time += delta_time
+        self.warning_time_left = max(
+            0.0, self.warning_time_left - delta_time
+        )
+
+    def warn_about_flight(self, player):
+        if player.magic_uses.get("Fly Magic", 0) > 0:
+            self.warning = "Activate Fly Magic with G before leaving!"
+        else:
+            self.warning = "Map 4 is bottomless! Craft Fly Magic first!"
+        self.warning_time_left = NPC_WARNING_DURATION
 
     def draw(self, screen, camera_x, player):
         frame_index = int(
@@ -147,6 +160,21 @@ class MissionNPC:
                 border_radius=5,
             )
             screen.blit(prompt, prompt_rect)
+
+        if self.warning_time_left > 0 and not self.active:
+            warning = self.font.render(
+                self.warning, True, (255, 180, 105)
+            )
+            warning_rect = warning.get_rect(
+                midbottom=(screen_x, draw_rect.top - 4)
+            )
+            pygame.draw.rect(
+                screen,
+                (35, 25, 35),
+                warning_rect.inflate(12, 7),
+                border_radius=5,
+            )
+            screen.blit(warning, warning_rect)
 
         if self.active:
             self._draw_panel(screen, player)
@@ -189,6 +217,13 @@ class MissionNPC:
             "S - Sell requested magic", True, (235, 235, 240)
         )
         screen.blit(sell, (panel.x + 22, panel.y + 121))
+
+        flight_tip = self.font.render(
+            "Map 4 warning: craft Fly Magic, then press G here.",
+            True,
+            (135, 220, 255),
+        )
+        screen.blit(flight_tip, (panel.x + 22, panel.y + 180))
 
         if self.message:
             message = self.font.render(

@@ -21,6 +21,8 @@ SLIME_SPAWN_INTERVAL = 5.0
 SLIME_POINTS = 5
 SLIME_DROP_CHANCE = 0.70
 INITIAL_SLIME_POSITIONS = (220, 360, 520, 700, 860)
+REQUIRED_EMBERSTONES = 2
+REQUIRED_LEVEL = 2
 
 MAP_PATH = Path(__file__).parent / "map2.png"
 
@@ -62,6 +64,27 @@ def create_emberstone(slime, ground_y):
         return Emberstone(center_x=slime.rect.centerx, bottom_y=ground_y)
 
     return None
+
+
+def draw_objective(screen, player):
+    """Draw persistent Ember Forest mission progress."""
+    font = pygame.font.Font(None, 19)
+    if player.map2_cleared:
+        message = "Ember Forest cleared! C: Craft Fire Magic"
+        color = (135, 255, 160)
+    else:
+        stones = min(
+            player.total_emberstones_collected, REQUIRED_EMBERSTONES
+        )
+        message = (
+            f"Objective: Level {player.level}/{REQUIRED_LEVEL}   "
+            f"Emberstones {stones}/{REQUIRED_EMBERSTONES}"
+        )
+        color = (255, 235, 145)
+    text_surface = font.render(message, True, color)
+    background = text_surface.get_rect(topright=(590, 13)).inflate(10, 6)
+    pygame.draw.rect(screen, (22, 27, 38), background, border_radius=5)
+    screen.blit(text_surface, text_surface.get_rect(topright=(590, 13)))
 
 
 def map2(player=None, arrived_from=None):
@@ -135,7 +158,11 @@ def map2(player=None, arrived_from=None):
         exit_portal.update(delta_time)
 
         # Keep defeated sprites visible until the attack animation completes.
-        if not player.is_attacking and not player.is_casting_fire:
+        if (
+            not player.is_attacking
+            and not player.is_casting_fire
+            and not player.is_kicking
+        ):
             defeated_slimes = [
                 slime for slime in slimes if not slime.alive
             ]
@@ -170,6 +197,12 @@ def map2(player=None, arrived_from=None):
                 if emberstone not in collected_emberstones
             ]
 
+        if (
+            player.level >= REQUIRED_LEVEL
+            and player.total_emberstones_collected >= REQUIRED_EMBERSTONES
+        ):
+            player.map2_cleared = True
+
         if player.death_animation_finished:
             player.respawn(*PLAYER_SPAWN)
             next_map = "map1"
@@ -186,6 +219,7 @@ def map2(player=None, arrived_from=None):
         elif (
             not player.is_dead
             and not player.ui_open
+            and player.map2_cleared
             and player.rect.colliderect(exit_portal.rect)
         ):
             next_map = "map3"
@@ -209,6 +243,7 @@ def map2(player=None, arrived_from=None):
             slime.draw(screen, camera_x)
         player.draw(screen, camera_x)
         player.draw_health_bar(screen)
+        draw_objective(screen, player)
         player.draw_active_screen(screen)
 
         pygame.display.flip()
