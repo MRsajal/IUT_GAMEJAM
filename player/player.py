@@ -35,6 +35,10 @@ KICK_DURATION = KICK_FRAME_COUNT / KICK_ANIMATION_SPEED
 KICK_COOLDOWN = 0.55
 FLIGHT_DURATION = 30.0
 FLIGHT_SPEED = 180
+FLIGHT_IDLE_ANIMATION_SPEED = 3
+FLIGHT_DASH_SPEED = 520
+FLIGHT_DASH_DURATION = 0.16
+FLIGHT_DASH_COOLDOWN = 0.75
 ATTACK_DURATION = ATTACK_FRAME_COUNT / ATTACK_ANIMATION_SPEED
 ATTACK_COOLDOWN = 0.5
 FIRE_DURATION = FIRE_FRAME_COUNT / FIRE_ANIMATION_SPEED
@@ -50,6 +54,7 @@ KICK_PATH = Path(__file__).parent / "kick"
 FIRE_PATH = Path(__file__).parent / "fire"
 DAMAGE_PATH = Path(__file__).parent / "damage"
 DEATH_PATH = Path(__file__).parent / "death"
+FLYING_PATH = Path(__file__).parent / "flying"
 
 SHIELD_HEALTH_CAPS = {
     1: 60,
@@ -67,12 +72,6 @@ MAGIC_RECIPES = [
         "required_level": 2,
         "emberstone_cost": 2,
         "uses_per_craft": 3,
-    },
-    {
-        "name": "Fly Magic",
-        "required_level": 3,
-        "wind_crystal_cost": 2,
-        "uses_per_craft": 1,
     },
 ]
 
@@ -113,6 +112,11 @@ class Player:
             pygame.transform.flip(frame, True, False)
             for frame in self.death_right
         ]
+        self.flying_right = self._load_frames(FLYING_PATH, 6)
+        self.flying_left = [
+            pygame.transform.flip(frame, True, False)
+            for frame in self.flying_right
+        ]
 
         # The collision box is slightly narrower than the sprite.
         self.rect = pygame.Rect(x, y, 24, 40)
@@ -139,12 +143,18 @@ class Player:
             "Fly Magic": 0,
         }
         self.flight_time_left = 0.0
+        self.flight_dash_time_left = 0.0
+        self.flight_dash_cooldown_left = 0.0
+        self.flight_horizontal_direction = 0
+        self.flight_vertical_direction = 0
         self.money = 0
         self.map3_cleared = False
         self.map2_cleared = False
         self.intro_dialogue_seen = False
         self.slime_video_seen = False
         self.map4_cleared = False
+        self.map5_cleared = False
+        self.map5_checkpoint = 0
         self.active_screen = None
         self.craft_message = ""
 
@@ -198,6 +208,7 @@ class Player:
         event,
         allow_flight_activation=False,
         require_active_flight=False,
+        allow_flight_dash=False,
     ):
         """Handle player controls and return True when an event is consumed."""
         if event.type != pygame.KEYDOWN:
@@ -237,6 +248,17 @@ class Player:
             self.use_health_potion()
             return True
 
+        if (
+            allow_flight_dash
+            and self.is_flying
+            and event.key in (pygame.K_LSHIFT, pygame.K_RSHIFT)
+            and self.flight_dash_cooldown_left <= 0
+            and not self.is_casting_fire
+        ):
+            self.flight_dash_time_left = FLIGHT_DASH_DURATION
+            self.flight_dash_cooldown_left = FLIGHT_DASH_COOLDOWN
+            return True
+
         if event.key in (pygame.K_w, pygame.K_UP) and self.on_ground:
             self.velocity_y = -JUMP_SPEED
             self.on_ground = False
@@ -244,14 +266,24 @@ class Player:
 
         if (
             event.key == pygame.K_g
-            and allow_flight_activation
+            and (allow_flight_activation or self.map3_cleared)
             and (self.is_flying or not require_active_flight)
-            and self.magic_uses.get("Fly Magic", 0) > 0
+            and self.map3_cleared
         ):
             self.flight_time_left += FLIGHT_DURATION
             self.velocity_y = 0.0
             self.on_ground = False
-            self._consume_magic_use("Fly Magic")
+            return True
+
+        if (
+            event.key == pygame.K_g
+            and not self.map3_cleared
+            and allow_flight_activation
+        ):
+            self.combat_message = (
+                "Wind Magic unlocks after clearing the Toad Realm."
+            )
+            self.combat_message_time_left = COMBAT_MESSAGE_DURATION
             return True
 
         if (
@@ -549,14 +581,19 @@ class Player:
 
             for target in damage_targets:
                 take_damage = getattr(target, "take_damage", None)
+                take_fire_damage = getattr(
+                    target, "take_fire_damage", None
+                )
                 target_rect = getattr(target, "rect", None)
 
                 if (
                     target_rect is not None
-                    and callable(take_damage)
                     and fire_rect.colliderect(target_rect)
                 ):
-                    take_damage(FIRE_DAMAGE)
+                    if callable(take_fire_damage):
+                        take_fire_damage(FIRE_DAMAGE)
+                    elif callable(take_damage):
+                        take_damage(FIRE_DAMAGE)
 
             self.fire_has_dealt_damage = True
 
@@ -706,6 +743,10 @@ class Player:
         self.kick_cooldown_left = 0.0
         self.kick_has_dealt_damage = False
         self.damage_time_left = 0.0
+        self.flight_dash_time_left = 0.0
+        self.flight_dash_cooldown_left = 0.0
+        self.flight_horizontal_direction = 0
+        self.flight_vertical_direction = 0
         self.death_animation_time = 0.0
         self.death_animation_finished = False
         self.active_screen = None
@@ -726,6 +767,7 @@ class Player:
         damage_targets=(),
         solid_rects=(),
         map_height=320,
+        use_flying_sprites=False,
     ):
         if self.is_dead:
             self.death_animation_time = min(
@@ -742,6 +784,9 @@ class Player:
         )
         self.combat_message_time_left = max(
             0.0, self.combat_message_time_left - delta_time
+        )
+        self.flight_dash_cooldown_left = max(
+            0.0, self.flight_dash_cooldown_left - delta_time
         )
 
         keys = pygame.key.get_pressed()
@@ -791,6 +836,22 @@ class Player:
             if keys[pygame.K_s] or keys[pygame.K_DOWN]:
                 vertical_direction += 1
 
+            self.flight_horizontal_direction = direction
+            self.flight_vertical_direction = vertical_direction
+
+            if use_flying_sprites and self.flight_dash_time_left > 0:
+                dash_direction = 1 if self.facing_right else -1
+                self.position.x += (
+                    dash_direction * FLIGHT_DASH_SPEED * delta_time
+                )
+                self.position.x = max(
+                    0, min(self.position.x, map_width - self.rect.width)
+                )
+                self.rect.x = round(self.position.x)
+                self.flight_dash_time_left = max(
+                    0.0, self.flight_dash_time_left - delta_time
+                )
+
             self.velocity_y = 0.0
             self.position.y += (
                 vertical_direction * FLIGHT_SPEED * delta_time
@@ -810,6 +871,10 @@ class Player:
             elif not self.is_casting_fire:
                 self._update_attack(delta_time, damage_targets)
             return
+
+        self.flight_dash_time_left = 0.0
+        self.flight_horizontal_direction = 0
+        self.flight_vertical_direction = 0
 
         # Gravity and landing collision for platforms and solid objects.
         old_bottom = self.rect.bottom
@@ -846,7 +911,7 @@ class Player:
         elif not self.is_casting_fire and not self.is_kicking:
             self._update_attack(delta_time, damage_targets)
 
-    def draw(self, screen, camera_x):
+    def draw(self, screen, camera_x, use_flying_sprites=False):
         drawing_fire = False
 
         if self.is_dead:
@@ -896,6 +961,24 @@ class Player:
                 int(attack_elapsed * ATTACK_ANIMATION_SPEED),
                 len(frames) - 1,
             )
+        elif use_flying_sprites and self.is_flying:
+            frames = (
+                self.flying_right if self.facing_right else self.flying_left
+            )
+            if self.flight_dash_time_left > 0:
+                frame_index = 3
+            elif self.flight_vertical_direction < 0:
+                frame_index = 4
+            elif self.flight_horizontal_direction != 0:
+                frame_index = 5
+            else:
+                # Frame 0 hovers; frames 1 and 2 add the idle/reading motion.
+                hover_cycle = (0, 1, 0, 2)
+                frame_index = hover_cycle[
+                    int(
+                        self.animation_time * FLIGHT_IDLE_ANIMATION_SPEED
+                    ) % len(hover_cycle)
+                ]
         else:
             frames = self.idle_right if self.facing_right else self.idle_left
             frame_index = int(
@@ -953,6 +1036,42 @@ class Player:
             (255, 255, 255),
         )
         screen.blit(label, (bar_x + 4, bar_y - 1))
+
+        resource_lines = [
+            f"Ember Crystals: {self.emberstones}",
+            f"Wind Crystals: {self.wind_crystals}",
+        ]
+        if self.level >= 2:
+            resource_lines.append(
+                f"Fire Magic: {self.magic_uses.get('Fire Magic', 0)} uses"
+            )
+        if self.map3_cleared:
+            resource_lines.append("Wind Magic: UNLIMITED")
+
+        resource_panel = pygame.Rect(
+            screen.get_width() - 190,
+            8,
+            182,
+            8 + len(resource_lines) * 18,
+        )
+        panel_surface = pygame.Surface(
+            resource_panel.size, pygame.SRCALPHA
+        )
+        panel_surface.fill((18, 22, 42, 190))
+        screen.blit(panel_surface, resource_panel)
+        pygame.draw.rect(
+            screen, (120, 190, 225), resource_panel, 1, border_radius=5
+        )
+        for index, line in enumerate(resource_lines):
+            color = (
+                (255, 160, 95) if line.startswith("Fire")
+                else (125, 225, 255)
+            )
+            text = self.ui_font.render(line, True, color)
+            screen.blit(
+                text,
+                (resource_panel.x + 7, resource_panel.y + 5 + index * 18),
+            )
 
         points_text = (
             f"Points: {self.points} (MAX LEVEL)"
@@ -1051,9 +1170,7 @@ class Player:
                 screen.blit(recipe_text, (panel.x + 24, recipe_y))
                 recipe_y += 27
 
-        if self.level >= 3:
-            instruction = "Press 1 for Fire or 2 for Fly Magic."
-        elif self.level >= 2:
+        if self.level >= 2:
             instruction = "Press 1 or ENTER for Fire Magic."
         else:
             instruction = "Reach level 2 to unlock Fire Magic."

@@ -66,10 +66,7 @@ class MissionNPC:
             self.request_amount = 0
             return
 
-        unlocked_magic = ["Fire Magic"]
-        if player.level >= 3:
-            unlocked_magic.append("Fly Magic")
-        self.request_magic = random.choice(unlocked_magic)
+        self.request_magic = "Fire Magic"
 
         available_amounts = [
             amount
@@ -129,10 +126,10 @@ class MissionNPC:
         )
 
     def warn_about_flight(self, player):
-        if player.magic_uses.get("Fly Magic", 0) > 0:
+        if player.map3_cleared:
             self.warning = "Activate Fly Magic with G before leaving!"
         else:
-            self.warning = "Map 4 is bottomless! Craft Fly Magic first!"
+            self.warning = "Clear the Toad Realm to unlock Wind Magic!"
         self.warning_time_left = NPC_WARNING_DURATION
 
     def draw(self, screen, camera_x, player):
@@ -219,7 +216,7 @@ class MissionNPC:
         screen.blit(sell, (panel.x + 22, panel.y + 121))
 
         flight_tip = self.font.render(
-            "Map 4 warning: craft Fly Magic, then press G here.",
+            "Map 4 warning: press G to activate unlimited Wind Magic.",
             True,
             (135, 220, 255),
         )
