@@ -21,21 +21,26 @@ STARTING_HEALTH = 50
 STARTING_ATTACK_DAMAGE = 20
 POINTS_PER_LEVEL = 100
 MAX_LEVEL = 4
+POINTS_PER_LEVEL = 50
 HEALTH_PER_LEVEL = 10
 ATTACK_DAMAGE_PER_LEVEL = 5
 DEATH_POINT_PENALTY = 10
 ATTACK_RANGE = 20
-FIRE_RANGE = 80
+FIRE_RANGE = 100
 FIRE_DAMAGE = 25
 KICK_DAMAGE = 15
 KICK_RANGE = 28
 KICK_KNOCKBACK = 115
 KICK_DURATION = KICK_FRAME_COUNT / KICK_ANIMATION_SPEED
 KICK_COOLDOWN = 0.55
+FLIGHT_DURATION = 30.0
+FLIGHT_SPEED = 180
 ATTACK_DURATION = ATTACK_FRAME_COUNT / ATTACK_ANIMATION_SPEED
 ATTACK_COOLDOWN = 0.5
 FIRE_DURATION = FIRE_FRAME_COUNT / FIRE_ANIMATION_SPEED
 FIRE_COOLDOWN = 1.0
+COMBAT_MESSAGE_DURATION = 2.0
+HEALTH_POTION_HEAL = 15
 DAMAGE_DURATION = DAMAGE_FRAME_COUNT / DAMAGE_ANIMATION_SPEED
 DEATH_DURATION = DEATH_FRAME_COUNT / DEATH_ANIMATION_SPEED
 
@@ -64,10 +69,10 @@ MAGIC_RECIPES = [
         "uses_per_craft": 3,
     },
     {
-        "name": "Wind Magic",
+        "name": "Fly Magic",
         "required_level": 3,
         "wind_crystal_cost": 2,
-        "uses_per_craft": 3,
+        "uses_per_craft": 1,
     },
 ]
 
@@ -127,13 +132,19 @@ class Player:
         self.emberstones = 0
         self.total_emberstones_collected = 0
         self.wind_crystals = 0
+        self.health_potions = 0
         self.held_magic = []
-        self.magic_uses = {"Fire Magic": 0, "Wind Magic": 0}
+        self.magic_uses = {
+            "Fire Magic": 0,
+            "Fly Magic": 0,
+        }
+        self.flight_time_left = 0.0
         self.money = 0
         self.map3_cleared = False
         self.map2_cleared = False
         self.intro_dialogue_seen = False
         self.slime_video_seen = False
+        self.map4_cleared = False
         self.active_screen = None
         self.craft_message = ""
 
@@ -146,6 +157,8 @@ class Player:
         self.fire_time_left = 0.0
         self.fire_cooldown_left = 0.0
         self.fire_has_dealt_damage = False
+        self.combat_message = ""
+        self.combat_message_time_left = 0.0
         self.damage_time_left = 0.0
         self.death_animation_time = 0.0
         self.death_animation_finished = False
@@ -180,7 +193,12 @@ class Player:
 
         return frames
 
-    def handle_event(self, event):
+    def handle_event(
+        self,
+        event,
+        allow_flight_activation=False,
+        require_active_flight=False,
+    ):
         """Handle player controls and return True when an event is consumed."""
         if event.type != pygame.KEYDOWN:
             return False
@@ -209,15 +227,39 @@ class Player:
             if event.key in (pygame.K_1, pygame.K_RETURN, pygame.K_KP_ENTER):
                 self.craft_magic("Fire Magic")
             elif event.key == pygame.K_2:
-                self.craft_magic("Wind Magic")
+                self.craft_magic("Fly Magic")
             return True
 
         if self.active_screen is not None:
             return True
 
+        if event.key == pygame.K_h:
+            self.use_health_potion()
+            return True
+
         if event.key in (pygame.K_w, pygame.K_UP) and self.on_ground:
             self.velocity_y = -JUMP_SPEED
             self.on_ground = False
+            return True
+
+        if (
+            event.key == pygame.K_g
+            and allow_flight_activation
+            and (self.is_flying or not require_active_flight)
+            and self.magic_uses.get("Fly Magic", 0) > 0
+        ):
+            self.flight_time_left += FLIGHT_DURATION
+            self.velocity_y = 0.0
+            self.on_ground = False
+            self._consume_magic_use("Fly Magic")
+            return True
+
+        if (
+            event.key == pygame.K_f
+            and self.magic_uses.get("Fire Magic", 0) <= 0
+        ):
+            self.combat_message = "No Fire Magic attacks remaining!"
+            self.combat_message_time_left = COMBAT_MESSAGE_DURATION
             return True
 
         if (
@@ -454,6 +496,8 @@ class Player:
     @property
     def is_kicking(self):
         return self.kick_time_left > 0
+    def is_flying(self):
+        return self.flight_time_left > 0
 
     @property
     def is_taking_damage(self):
@@ -567,6 +611,8 @@ class Player:
         self.fire_has_dealt_damage = False
         self.kick_time_left = 0.0
         self.kick_has_dealt_damage = False
+        self.combat_message = ""
+        self.combat_message_time_left = 0.0
 
         if self.is_dead:
             self.damage_time_left = 0.0
@@ -614,6 +660,35 @@ class Player:
         """Compatibility method for existing Map 2 code."""
         self.collect_emberstones(amount)
 
+    def heal(self, amount):
+        """Restore health without exceeding the player's maximum health."""
+        old_health = self.health
+        self.health = min(self.max_health, self.health + max(0, amount))
+        return self.health - old_health
+
+    def collect_health_potions(self, amount=1):
+        amount = max(0, amount)
+        self.health_potions += amount
+        if amount > 0:
+            self.combat_message = "Potion collected - press H to use"
+            self.combat_message_time_left = COMBAT_MESSAGE_DURATION
+
+    def use_health_potion(self):
+        if self.health_potions <= 0:
+            self.combat_message = "No Health Potions remaining!"
+            self.combat_message_time_left = COMBAT_MESSAGE_DURATION
+            return False
+        if self.health >= self.max_health:
+            self.combat_message = "Health is already full."
+            self.combat_message_time_left = COMBAT_MESSAGE_DURATION
+            return False
+
+        healed = self.heal(HEALTH_POTION_HEAL)
+        self.health_potions -= 1
+        self.combat_message = f"Health Potion used: +{healed} HP"
+        self.combat_message_time_left = COMBAT_MESSAGE_DURATION
+        return True
+
     def set_position(self, x, y):
         """Move to a map spawn without resetting player stats."""
         self.rect.topleft = (x, y)
@@ -638,6 +713,7 @@ class Player:
         """Restore health while preserving level, points, and drops."""
         self.lose_points(DEATH_POINT_PENALTY)
         self.health = self.max_health
+        self.flight_time_left = 0.0
         self.set_position(x, y)
 
     def update(
@@ -647,6 +723,7 @@ class Player:
         map_width,
         damage_targets=(),
         solid_rects=(),
+        map_height=320,
     ):
         if self.is_dead:
             self.death_animation_time = min(
@@ -657,6 +734,13 @@ class Player:
                 self.death_animation_time >= DEATH_DURATION
             )
             return
+
+        self.flight_time_left = max(
+            0.0, self.flight_time_left - delta_time
+        )
+        self.combat_message_time_left = max(
+            0.0, self.combat_message_time_left - delta_time
+        )
 
         keys = pygame.key.get_pressed()
         direction = 0
@@ -697,6 +781,33 @@ class Player:
                 else:
                     self.rect.left = solid_rect.right
                 self.position.x = self.rect.x
+
+        if self.is_flying:
+            vertical_direction = 0
+            if keys[pygame.K_w] or keys[pygame.K_UP]:
+                vertical_direction -= 1
+            if keys[pygame.K_s] or keys[pygame.K_DOWN]:
+                vertical_direction += 1
+
+            self.velocity_y = 0.0
+            self.position.y += (
+                vertical_direction * FLIGHT_SPEED * delta_time
+            )
+            self.position.y = max(
+                0, min(self.position.y, map_height - self.rect.height)
+            )
+            self.rect.y = round(self.position.y)
+            self.on_ground = False
+
+            self.animation_time += delta_time
+            self._update_fire_attack(delta_time, damage_targets)
+            if self.is_taking_damage:
+                self.damage_time_left = max(
+                    0, self.damage_time_left - delta_time
+                )
+            elif not self.is_casting_fire:
+                self._update_attack(delta_time, damage_targets)
+            return
 
         # Gravity and landing collision for platforms and solid objects.
         old_bottom = self.rect.bottom
@@ -815,12 +926,19 @@ class Player:
         bar_height = 16
         health_ratio = self.health / self.max_health
 
+        if health_ratio < 0.25:
+            health_color = (215, 55, 55)
+        elif health_ratio <= 0.50:
+            health_color = (235, 200, 55)
+        else:
+            health_color = (45, 190, 75)
+
         pygame.draw.rect(
             screen, (35, 35, 35), (bar_x, bar_y, bar_width, bar_height)
         )
         pygame.draw.rect(
             screen,
-            (45, 190, 75),
+            health_color,
             (bar_x, bar_y, round(bar_width * health_ratio), bar_height),
         )
         pygame.draw.rect(
@@ -850,6 +968,25 @@ class Player:
             "SPACE Attack   K Kick   F Fire", True, (225, 225, 235)
         )
         screen.blit(controls_label, (bar_x, bar_y + bar_height + 22))
+        if self.is_flying:
+            flight_label = self.ui_font.render(
+                f"Flight: {self.flight_time_left:.1f}s",
+                True,
+                (135, 220, 255),
+            )
+            screen.blit(
+                flight_label,
+                (bar_x, bar_y + bar_height + 21),
+            )
+
+        if self.combat_message_time_left > 0:
+            message_y = bar_y + bar_height + (39 if self.is_flying else 21)
+            combat_message = self.ui_font.render(
+                self.combat_message,
+                True,
+                (255, 145, 105),
+            )
+            screen.blit(combat_message, (bar_x, message_y))
 
     def draw_active_screen(self, screen):
         if self.active_screen is None:
@@ -896,13 +1033,19 @@ class Player:
             for recipe_number, recipe in enumerate(
                 unlocked_recipes, start=1
             ):
-                if recipe["name"] == "Fire Magic":
-                    cost_text = "2 Emberstones"
+                if recipe.get("emberstone_cost"):
+                    cost_text = (
+                        f"{recipe['emberstone_cost']} Emberstones"
+                    )
                 else:
-                    cost_text = "2 Wind Crystals"
+                    cost_text = (
+                        f"{recipe.get('wind_crystal_cost', 0)} "
+                        "Wind Crystals"
+                    )
                 recipe_line = (
                     f"{recipe_number}. {recipe['name']} - "
-                    f"{cost_text} (+3 uses)"
+                    f"{cost_text} "
+                    f"(+{recipe.get('uses_per_craft', 1)} uses)"
                 )
                 recipe_text = self.menu_font.render(
                     recipe_line, True, (255, 145, 80)
@@ -911,7 +1054,7 @@ class Player:
                 recipe_y += 27
 
         if self.level >= 3:
-            instruction = "Press 1 for Fire or 2 for Wind Magic."
+            instruction = "Press 1 for Fire or 2 for Fly Magic."
         elif self.level >= 2:
             instruction = "Press 1 or ENTER for Fire Magic."
         else:
@@ -945,13 +1088,14 @@ class Player:
             f"Money: {self.money}",
             f"Emberstones: {self.emberstones}",
             f"Wind Crystals: {self.wind_crystals}",
+            f"Health Potions: {self.health_potions} (press H to use)",
             "Magic held:",
         ]
-        y = panel.y + 58
+        y = panel.y + 54
         for detail in details:
             text = self.menu_font.render(detail, True, (235, 235, 240))
             screen.blit(text, (panel.x + 24, y))
-            y += 27
+            y += 23
 
         magic_names = list(dict.fromkeys(self.held_magic))
         if not magic_names:
@@ -970,7 +1114,7 @@ class Player:
                 magic_line, True, (255, 170, 100)
             )
             screen.blit(text, (panel.x + 42, y))
-            y += 22
+            y += 20
 
         close_text = self.ui_font.render(
             "Press M or ESC to close", True, (175, 180, 195)
