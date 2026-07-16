@@ -9,6 +9,8 @@ JUMP_SPEED = 300
 IDLE_ANIMATION_SPEED = 8
 ATTACK_ANIMATION_SPEED = 12
 ATTACK_FRAME_COUNT = 5
+KICK_ANIMATION_SPEED = 12
+KICK_FRAME_COUNT = 4
 FIRE_ANIMATION_SPEED = 12
 FIRE_FRAME_COUNT = 9
 DAMAGE_ANIMATION_SPEED = 12
@@ -18,12 +20,18 @@ DEATH_FRAME_COUNT = 11
 STARTING_HEALTH = 50
 STARTING_ATTACK_DAMAGE = 20
 POINTS_PER_LEVEL = 100
+MAX_LEVEL = 4
 HEALTH_PER_LEVEL = 10
 ATTACK_DAMAGE_PER_LEVEL = 5
 DEATH_POINT_PENALTY = 10
 ATTACK_RANGE = 20
 FIRE_RANGE = 80
 FIRE_DAMAGE = 25
+KICK_DAMAGE = 15
+KICK_RANGE = 28
+KICK_KNOCKBACK = 115
+KICK_DURATION = KICK_FRAME_COUNT / KICK_ANIMATION_SPEED
+KICK_COOLDOWN = 0.55
 ATTACK_DURATION = ATTACK_FRAME_COUNT / ATTACK_ANIMATION_SPEED
 ATTACK_COOLDOWN = 0.5
 FIRE_DURATION = FIRE_FRAME_COUNT / FIRE_ANIMATION_SPEED
@@ -33,9 +41,19 @@ DEATH_DURATION = DEATH_FRAME_COUNT / DEATH_ANIMATION_SPEED
 
 IDLE_PATH = Path(__file__).parent / "idle"
 ATTACK_PATH = Path(__file__).parent / "attack"
+KICK_PATH = Path(__file__).parent / "kick"
 FIRE_PATH = Path(__file__).parent / "fire"
 DAMAGE_PATH = Path(__file__).parent / "damage"
 DEATH_PATH = Path(__file__).parent / "death"
+
+SHIELD_HEALTH_CAPS = {
+    1: 60,
+    2: 80,
+    3: 100,
+    4: 120,
+}
+SHIELD_HEALTH_INCREASE = 10
+SHIELD_EMBERSTONE_COST = 1
 
 # Add future magic recipes to this array.
 MAGIC_RECIPES = [
@@ -65,6 +83,11 @@ class Player:
         self.attack_left = [
             pygame.transform.flip(frame, True, False)
             for frame in self.attack_right
+        ]
+        self.kick_right = self._load_frames(KICK_PATH, KICK_FRAME_COUNT)
+        self.kick_left = [
+            pygame.transform.flip(frame, True, False)
+            for frame in self.kick_right
         ]
         self.fire_right = self._load_frames(FIRE_PATH, FIRE_FRAME_COUNT)
         self.fire_left = [
@@ -102,17 +125,24 @@ class Player:
         self.points = 0
         self.next_level_points = POINTS_PER_LEVEL
         self.emberstones = 0
+        self.total_emberstones_collected = 0
         self.wind_crystals = 0
         self.held_magic = []
         self.magic_uses = {"Fire Magic": 0, "Wind Magic": 0}
         self.money = 0
         self.map3_cleared = False
+        self.map2_cleared = False
+        self.intro_dialogue_seen = False
+        self.slime_video_seen = False
         self.active_screen = None
         self.craft_message = ""
 
         self.attack_time_left = 0.0
         self.attack_cooldown_left = 0.0
         self.attack_has_dealt_damage = False
+        self.kick_time_left = 0.0
+        self.kick_cooldown_left = 0.0
+        self.kick_has_dealt_damage = False
         self.fire_time_left = 0.0
         self.fire_cooldown_left = 0.0
         self.fire_has_dealt_damage = False
@@ -204,9 +234,22 @@ class Player:
             return True
 
         if (
+            event.key == pygame.K_k
+            and self.kick_cooldown_left <= 0
+            and not self.is_attacking
+            and not self.is_casting_fire
+            and not self.is_kicking
+        ):
+            self.kick_time_left = KICK_DURATION
+            self.kick_cooldown_left = KICK_COOLDOWN
+            self.kick_has_dealt_damage = False
+            return True
+
+        if (
             event.key == pygame.K_SPACE
             and self.attack_cooldown_left <= 0
             and not self.is_casting_fire
+            and not self.is_kicking
         ):
             self.attack_time_left = ATTACK_DURATION
             self.attack_cooldown_left = ATTACK_COOLDOWN
@@ -272,6 +315,34 @@ class Player:
         )
         self.craft_message = (
             f"Crafted {magic_name}! +{uses_added} uses"
+        )
+        return True
+
+    @property
+    def shield_health_cap(self):
+        return SHIELD_HEALTH_CAPS[min(self.level, MAX_LEVEL)]
+
+    def craft_shield_upgrade(self):
+        """Improve maximum health without exceeding the level cap."""
+        if self.max_health >= self.shield_health_cap:
+            self.craft_message = (
+                f"Level {self.level} health is capped at "
+                f"{self.shield_health_cap}."
+            )
+            return False
+        if self.emberstones < SHIELD_EMBERSTONE_COST:
+            self.craft_message = "Need 1 Emberstone for a shield upgrade."
+            return False
+
+        self.emberstones -= SHIELD_EMBERSTONE_COST
+        increase = min(
+            SHIELD_HEALTH_INCREASE,
+            self.shield_health_cap - self.max_health,
+        )
+        self.max_health += increase
+        self.health += increase
+        self.craft_message = (
+            f"Shield improved! Maximum health is now {self.max_health}."
         )
         return True
 
@@ -355,6 +426,23 @@ class Player:
             self.rect.height,
         )
 
+    def get_kick_rect(self):
+        """Return the short, forward-facing kick area."""
+        if self.facing_right:
+            return pygame.Rect(
+                self.rect.centerx,
+                self.rect.top + self.rect.height // 3,
+                KICK_RANGE,
+                self.rect.height * 2 // 3,
+            )
+
+        return pygame.Rect(
+            self.rect.centerx - KICK_RANGE,
+            self.rect.top + self.rect.height // 3,
+            KICK_RANGE,
+            self.rect.height * 2 // 3,
+        )
+
     @property
     def is_attacking(self):
         return self.attack_time_left > 0
@@ -362,6 +450,10 @@ class Player:
     @property
     def is_casting_fire(self):
         return self.fire_time_left > 0
+
+    @property
+    def is_kicking(self):
+        return self.kick_time_left > 0
 
     @property
     def is_taking_damage(self):
@@ -424,6 +516,41 @@ class Player:
 
         self.fire_time_left = max(0, self.fire_time_left - delta_time)
 
+    def _update_kick(self, delta_time, damage_targets):
+        self.kick_cooldown_left = max(
+            0, self.kick_cooldown_left - delta_time
+        )
+
+        if not self.is_kicking:
+            return
+
+        kick_elapsed = KICK_DURATION - self.kick_time_left
+        impact_time = 2 / KICK_ANIMATION_SPEED
+
+        if (
+            not self.kick_has_dealt_damage
+            and kick_elapsed >= impact_time
+        ):
+            kick_rect = self.get_kick_rect()
+            direction = 1 if self.facing_right else -1
+
+            for target in damage_targets:
+                target_rect = getattr(target, "rect", None)
+                take_damage = getattr(target, "take_damage", None)
+                if (
+                    target_rect is not None
+                    and callable(take_damage)
+                    and kick_rect.colliderect(target_rect)
+                ):
+                    take_damage(KICK_DAMAGE)
+                    apply_knockback = getattr(target, "apply_knockback", None)
+                    if callable(apply_knockback):
+                        apply_knockback(direction * KICK_KNOCKBACK)
+
+            self.kick_has_dealt_damage = True
+
+        self.kick_time_left = max(0, self.kick_time_left - delta_time)
+
     def take_damage(self, amount):
         """Reduce player health without allowing it to go below zero."""
         if self.is_dead or self.is_taking_damage:
@@ -438,6 +565,8 @@ class Player:
         self.attack_has_dealt_damage = False
         self.fire_time_left = 0.0
         self.fire_has_dealt_damage = False
+        self.kick_time_left = 0.0
+        self.kick_has_dealt_damage = False
 
         if self.is_dead:
             self.damage_time_left = 0.0
@@ -463,7 +592,10 @@ class Player:
         """Add score and process every reached level threshold."""
         self.points += max(0, amount)
 
-        while self.points >= self.next_level_points:
+        while (
+            self.level < MAX_LEVEL
+            and self.points >= self.next_level_points
+        ):
             self.level_up(HEALTH_PER_LEVEL, ATTACK_DAMAGE_PER_LEVEL)
             self.next_level_points += POINTS_PER_LEVEL
 
@@ -471,7 +603,9 @@ class Player:
         self.points = max(0, self.points - max(0, amount))
 
     def collect_emberstones(self, amount=1):
-        self.emberstones += max(0, amount)
+        amount = max(0, amount)
+        self.emberstones += amount
+        self.total_emberstones_collected += amount
 
     def collect_wind_crystals(self, amount=1):
         self.wind_crystals += max(0, amount)
@@ -491,6 +625,9 @@ class Player:
         self.fire_time_left = 0.0
         self.fire_cooldown_left = 0.0
         self.fire_has_dealt_damage = False
+        self.kick_time_left = 0.0
+        self.kick_cooldown_left = 0.0
+        self.kick_has_dealt_damage = False
         self.damage_time_left = 0.0
         self.death_animation_time = 0.0
         self.death_animation_finished = False
@@ -524,7 +661,11 @@ class Player:
         keys = pygame.key.get_pressed()
         direction = 0
 
-        if not self.is_taking_damage and not self.is_casting_fire:
+        if (
+            not self.is_taking_damage
+            and not self.is_casting_fire
+            and not self.is_kicking
+        ):
             if keys[pygame.K_a] or keys[pygame.K_LEFT]:
                 direction -= 1
                 self.facing_right = False
@@ -584,11 +725,12 @@ class Player:
 
         self.animation_time += delta_time
         self._update_fire_attack(delta_time, damage_targets)
+        self._update_kick(delta_time, damage_targets)
         if self.is_taking_damage:
             self.damage_time_left = max(
                 0, self.damage_time_left - delta_time
             )
-        elif not self.is_casting_fire:
+        elif not self.is_casting_fire and not self.is_kicking:
             self._update_attack(delta_time, damage_targets)
 
     def draw(self, screen, camera_x):
@@ -621,6 +763,15 @@ class Player:
             fire_elapsed = FIRE_DURATION - self.fire_time_left
             frame_index = min(
                 int(fire_elapsed * FIRE_ANIMATION_SPEED),
+                len(frames) - 1,
+            )
+        elif self.is_kicking:
+            frames = (
+                self.kick_right if self.facing_right else self.kick_left
+            )
+            kick_elapsed = KICK_DURATION - self.kick_time_left
+            frame_index = min(
+                int(kick_elapsed * KICK_ANIMATION_SPEED),
                 len(frames) - 1,
             )
         elif self.is_attacking:
@@ -683,12 +834,22 @@ class Player:
         )
         screen.blit(label, (bar_x + 4, bar_y - 1))
 
+        points_text = (
+            f"Points: {self.points} (MAX LEVEL)"
+            if self.level >= MAX_LEVEL
+            else f"Points: {self.points}/{self.next_level_points}"
+        )
         points_label = self.ui_font.render(
-            f"Points: {self.points}/{self.next_level_points}",
+            points_text,
             True,
             (255, 235, 120),
         )
         screen.blit(points_label, (bar_x, bar_y + bar_height + 3))
+
+        controls_label = self.ui_font.render(
+            "SPACE Attack   K Kick   F Fire", True, (225, 225, 235)
+        )
+        screen.blit(controls_label, (bar_x, bar_y + bar_height + 22))
 
     def draw_active_screen(self, screen):
         if self.active_screen is None:
