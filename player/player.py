@@ -496,6 +496,8 @@ class Player:
     @property
     def is_kicking(self):
         return self.kick_time_left > 0
+
+    @property
     def is_flying(self):
         return self.flight_time_left > 0
 
@@ -964,10 +966,6 @@ class Player:
         )
         screen.blit(points_label, (bar_x, bar_y + bar_height + 3))
 
-        controls_label = self.ui_font.render(
-            "SPACE Attack   K Kick   F Fire", True, (225, 225, 235)
-        )
-        screen.blit(controls_label, (bar_x, bar_y + bar_height + 22))
         if self.is_flying:
             flight_label = self.ui_font.render(
                 f"Flight: {self.flight_time_left:.1f}s",
