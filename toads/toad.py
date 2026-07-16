@@ -4,7 +4,7 @@ import pygame
 
 
 TOAD_MAX_HEALTH = 20
-TOAD_ATTACK_DAMAGE = 30
+TOAD_ATTACK_DAMAGE = 20
 TOAD_SPEED = 45
 TOAD_ATTACK_RANGE = 24
 TOAD_IDLE_SPEED = 6
@@ -17,9 +17,12 @@ TOAD_FRAME_SIZE = (48, 38)
 TOAD_SPAWN_SHIFT = 8
 BOSS_FRAME_SIZE = (72, 57)
 BOSS_MAX_HEALTH = 100
-BOSS_ATTACK_DAMAGE = 50
+BOSS_ATTACK_DAMAGE = 30
 BOSS_SPEED = 35
 BOSS_ATTACK_RANGE = 40
+TOAD_KNOCKBACK_DECELERATION = 850
+KNOCKBACK_AIR_TIME = 0.45
+KNOCKBACK_ARC_HEIGHT = 24
 
 TOAD_PATH = Path(__file__).parent
 
@@ -56,6 +59,8 @@ class Toad:
         self.attack_time_left = 0.0
         self.attack_cooldown_left = 0.0
         self.attack_has_dealt_damage = False
+        self.knockback_velocity = 0.0
+        self.knockback_air_time = 0.0
 
     @classmethod
     def _load_animations(cls):
@@ -92,6 +97,15 @@ class Toad:
     def take_damage(self, amount):
         self.health = max(0, self.health - max(0, amount))
 
+    def apply_knockback(self, distance):
+        """Launch the toad horizontally instead of teleporting it."""
+        # Bosses are heavier, so the same kick moves them less.
+        strength = 3.0 if self.is_boss else 5.5
+        self.knockback_velocity = distance * strength
+        self.knockback_air_time = KNOCKBACK_AIR_TIME
+        self.attack_time_left = 0.0
+        self.attack_has_dealt_damage = False
+
     def _player_is_in_zone(self, player):
         return self.zone_left <= player.rect.centerx <= self.zone_right
 
@@ -125,6 +139,37 @@ class Toad:
         self.attack_cooldown_left = max(
             0, self.attack_cooldown_left - delta_time
         )
+        self.knockback_air_time = max(
+            0, self.knockback_air_time - delta_time
+        )
+
+        if abs(self.knockback_velocity) > 1:
+            self.state = "walk"
+            self.animation_time += delta_time
+            self.position_x += self.knockback_velocity * delta_time
+            self.position_x = max(
+                self.zone_left,
+                min(self.position_x, self.zone_right - self.rect.width),
+            )
+            at_boundary = self.position_x in (
+                self.zone_left,
+                self.zone_right - self.rect.width,
+            )
+            deceleration = TOAD_KNOCKBACK_DECELERATION * delta_time
+            if self.knockback_velocity > 0:
+                self.knockback_velocity = max(
+                    0, self.knockback_velocity - deceleration
+                )
+            else:
+                self.knockback_velocity = min(
+                    0, self.knockback_velocity + deceleration
+                )
+            if at_boundary:
+                self.knockback_velocity = 0.0
+            self.rect.x = round(self.position_x)
+            return
+
+        self.knockback_velocity = 0.0
 
         if self.attack_time_left > 0:
             self.state = "attack"
@@ -200,10 +245,14 @@ class Toad:
             anchor_x = 45 if self.facing_right else 27
         else:
             anchor_x = 30 if self.facing_right else 18
+        air_progress = self.knockback_air_time / KNOCKBACK_AIR_TIME
+        arc_offset = round(
+            4 * KNOCKBACK_ARC_HEIGHT * air_progress * (1 - air_progress)
+        )
         draw_rect = image.get_rect(
             bottomleft=(
                 self.rect.centerx - round(camera_x) - anchor_x,
-                self.rect.bottom,
+                self.rect.bottom - arc_offset,
             )
         )
         screen.blit(image, draw_rect)

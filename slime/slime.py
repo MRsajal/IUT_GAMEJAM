@@ -9,6 +9,9 @@ SLIME_SPEED = 55
 SLIME_MAX_HEALTH = 20
 SLIME_CONTACT_DAMAGE = 10
 SLIME_DAMAGE_COOLDOWN = 1.0
+SLIME_KNOCKBACK_DECELERATION = 900
+KNOCKBACK_AIR_TIME = 0.45
+KNOCKBACK_ARC_HEIGHT = 22
 SLIME_PATH = Path(__file__).parent
 
 
@@ -28,6 +31,8 @@ class Slime:
         self.facing_right = True
         self.animation_time = 0.0
         self.damage_cooldown_left = 0.0
+        self.knockback_velocity = 0.0
+        self.knockback_air_time = 0.0
 
     @classmethod
     def _load_frames(cls):
@@ -53,23 +58,47 @@ class Slime:
     def take_damage(self, amount):
         self.health = max(0, self.health - max(0, amount))
 
+    def apply_knockback(self, distance):
+        """Launch the slime horizontally instead of teleporting it."""
+        self.knockback_velocity = distance * 5.5
+        self.knockback_air_time = KNOCKBACK_AIR_TIME
+
     def update(self, delta_time, player, map_width):
         if not self.alive:
             return
 
-        if player.rect.centerx < self.rect.centerx:
-            direction = -1
-            self.facing_right = False
-        elif player.rect.centerx > self.rect.centerx:
-            direction = 1
-            self.facing_right = True
-        else:
-            direction = 0
+        self.knockback_air_time = max(
+            0, self.knockback_air_time - delta_time
+        )
 
-        self.position_x += direction * SLIME_SPEED * delta_time
+        if abs(self.knockback_velocity) > 1:
+            self.position_x += self.knockback_velocity * delta_time
+            deceleration = SLIME_KNOCKBACK_DECELERATION * delta_time
+            if self.knockback_velocity > 0:
+                self.knockback_velocity = max(
+                    0, self.knockback_velocity - deceleration
+                )
+            else:
+                self.knockback_velocity = min(
+                    0, self.knockback_velocity + deceleration
+                )
+        else:
+            self.knockback_velocity = 0.0
+            if player.rect.centerx < self.rect.centerx:
+                direction = -1
+                self.facing_right = False
+            elif player.rect.centerx > self.rect.centerx:
+                direction = 1
+                self.facing_right = True
+            else:
+                direction = 0
+            self.position_x += direction * SLIME_SPEED * delta_time
+
         self.position_x = max(
             0, min(self.position_x, map_width - self.rect.width)
         )
+        if self.position_x in (0, map_width - self.rect.width):
+            self.knockback_velocity = 0.0
         self.rect.x = round(self.position_x)
 
         self.damage_cooldown_left = max(
@@ -92,7 +121,14 @@ class Slime:
             self.animation_time * SLIME_ANIMATION_SPEED
         ) % len(frames)
         image = frames[frame_index]
+        air_progress = self.knockback_air_time / KNOCKBACK_AIR_TIME
+        arc_offset = round(
+            4 * KNOCKBACK_ARC_HEIGHT * air_progress * (1 - air_progress)
+        )
         draw_rect = image.get_rect(
-            midbottom=(self.rect.centerx - round(camera_x), self.rect.bottom)
+            midbottom=(
+                self.rect.centerx - round(camera_x),
+                self.rect.bottom - arc_offset,
+            )
         )
         screen.blit(image, draw_rect)

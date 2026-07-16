@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pygame
 
+from dialogue import DialogueBox, MapSelectionBox
 from npc1 import HealingNPC
 from player import Player
 from portal import Portal
@@ -19,6 +20,41 @@ MAP2_RETURN_SPAWN = (MAP_WIDTH - 80, 180)
 NPC_CENTER_X = 480
 
 MAP_PATH = Path(__file__).parent / "map.png"
+
+INTRO_DIALOGUE = [
+    {
+        "speaker": "Mysterious Keeper",
+        "text": "Hey! You there! Can you hear me?",
+    },
+    {
+        "speaker": "Girl",
+        "text": "Where am I? And why is everything glowing?",
+    },
+    {
+        "speaker": "Mysterious Keeper",
+        "text": "You kicked the Emberstone, didn't you?",
+    },
+    {
+        "speaker": "Girl",
+        "text": "I thought it was just a rock...",
+    },
+    {
+        "speaker": "Mysterious Keeper",
+        "text": "That stone protected the barriers between our worlds. Your kick awakened the portals and the creatures beyond them.",
+    },
+    {
+        "speaker": "Girl",
+        "text": "Then tell me how to fix it.",
+    },
+    {
+        "speaker": "Mysterious Keeper",
+        "text": "Travel through the portal. Defeat the slimes and recover their Emberstones. And remember: your kick may be your greatest weapon.",
+    },
+    {
+        "speaker": "Objective",
+        "text": "Reach the portal. Move with A and D, jump with W, attack with SPACE, and kick with K.",
+    },
+]
 
 
 def load_map():
@@ -99,6 +135,15 @@ def map1(player=None, arrived_from=None):
         default=MAP_HEIGHT,
     )
     healing_npc = HealingNPC(NPC_CENTER_X, npc_ground)
+    intro_dialogue = None
+    if not player.intro_dialogue_seen and arrived_from is None:
+        dialogue_portraits = {
+            "Girl": player.idle_right[0],
+            "Mysterious Keeper": healing_npc.portrait,
+        }
+        intro_dialogue = DialogueBox(
+            INTRO_DIALOGUE, portraits=dialogue_portraits
+        )
 
     # Add future enemies here. Each needs a rect and take_damage(amount).
     damage_targets = []
@@ -106,6 +151,8 @@ def map1(player=None, arrived_from=None):
     running = True
     next_map = None
     next_arrival_from = None
+    map_selection = None
+    portal_ready = True
 
     while running:
         delta_time = clock.tick(60) / 1000
@@ -115,7 +162,21 @@ def map1(player=None, arrived_from=None):
                 running = False
             else:
                 event_consumed = False
-                if (
+                if intro_dialogue is not None and not intro_dialogue.finished:
+                    event_consumed = intro_dialogue.handle_event(event)
+                elif map_selection is not None:
+                    event_consumed = map_selection.handle_event(event)
+                    if map_selection.closed:
+                        if map_selection.choice is not None:
+                            next_map = map_selection.choice
+                            next_arrival_from = "map1"
+                            running = False
+                        else:
+                            portal_ready = False
+                        map_selection = None
+                elif healing_npc.active:
+                    event_consumed = healing_npc.handle_event(event, player)
+                elif (
                     event.type == pygame.KEYDOWN
                     and event.key == pygame.K_e
                     and not player.ui_open
@@ -131,7 +192,22 @@ def map1(player=None, arrived_from=None):
                 ):
                     running = False
 
-        if not player.ui_open:
+        dialogue_open = (
+            intro_dialogue is not None and not intro_dialogue.finished
+        )
+        map_selection_open = map_selection is not None
+        keeper_store_open = healing_npc.active
+        if intro_dialogue is not None:
+            intro_dialogue.update(delta_time)
+            if intro_dialogue.finished:
+                player.intro_dialogue_seen = True
+
+        if (
+            not player.ui_open
+            and not dialogue_open
+            and not map_selection_open
+            and not keeper_store_open
+        ):
             player.update(
                 delta_time, platform_rects, MAP_WIDTH, damage_targets
             )
@@ -145,13 +221,21 @@ def map1(player=None, arrived_from=None):
             next_arrival_from = None
             running = False
         elif (
-            not player.is_dead
+            running
+            and not player.is_dead
             and not player.ui_open
+            and not dialogue_open
+            and not keeper_store_open
+            and map_selection is None
+            and portal_ready
             and player.rect.colliderect(exit_portal.rect)
         ):
-            next_map = "map2"
-            next_arrival_from = "map1"
-            running = False
+            map_selection = MapSelectionBox(
+                player.map2_cleared, player.map3_cleared
+            )
+
+        if not player.rect.colliderect(exit_portal.rect):
+            portal_ready = True
 
         # Follow the player while keeping the camera inside the map.
         camera_x = player.rect.centerx - SCREEN_WIDTH / 2
@@ -168,6 +252,11 @@ def map1(player=None, arrived_from=None):
         player.draw(screen, camera_x)
         player.draw_health_bar(screen)
         player.draw_active_screen(screen)
+        healing_npc.draw_store(screen, player)
+        if intro_dialogue is not None:
+            intro_dialogue.draw(screen)
+        if map_selection is not None:
+            map_selection.draw(screen)
 
         pygame.display.flip()
 

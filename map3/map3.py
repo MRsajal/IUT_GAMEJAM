@@ -261,7 +261,11 @@ def map3(player=None, arrived_from=None):
             mission_npc.update(delta_time)
 
         # Keep defeated sprites visible until the attack animation completes.
-        if not player.is_attacking and not player.is_casting_fire:
+        if (
+            not player.is_attacking
+            and not player.is_casting_fire
+            and not player.is_kicking
+        ):
             defeated_toads = [
                 toad for toad in toads if not toad.alive
             ]
@@ -305,7 +309,7 @@ def map3(player=None, arrived_from=None):
             and not game_ui_open
             and player.rect.colliderect(return_portal.rect)
         ):
-            next_map = "map2"
+            next_map = "map1" if player.map2_cleared else "map2"
             next_arrival_from = "map3"
             running = False
         elif (
