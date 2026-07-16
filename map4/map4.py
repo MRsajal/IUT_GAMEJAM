@@ -103,6 +103,7 @@ def map4(player=None, arrived_from=None):
                     event,
                     allow_flight_activation=True,
                     require_active_flight=True,
+                    allow_flight_dash=True,
                 )
                 if (
                     not event_consumed
@@ -121,6 +122,7 @@ def map4(player=None, arrived_from=None):
                 MAP_WIDTH,
                 damage_targets,
                 map_height=MAP_HEIGHT,
+                use_flying_sprites=True,
             )
 
             stone_spawn_timer += delta_time
@@ -205,7 +207,7 @@ def map4(player=None, arrived_from=None):
             and not player.ui_open
             and player.rect.colliderect(entrance_portal.rect)
         ):
-            next_map = "map3"
+            next_map = "map1" if arrived_from == "map1" else "map3"
             next_arrival_from = "map4"
             running = False
 
@@ -226,7 +228,7 @@ def map4(player=None, arrived_from=None):
             stone.draw(screen, camera_x)
         for potion in potions:
             potion.draw(screen, camera_x)
-        player.draw(screen, camera_x)
+        player.draw(screen, camera_x, use_flying_sprites=True)
         player.draw_health_bar(screen)
 
         if not player.is_flying and not player.is_dead:
@@ -239,6 +241,16 @@ def map4(player=None, arrived_from=None):
                 midtop=(SCREEN_WIDTH // 2, 18)
             )
             screen.blit(warning, warning_rect)
+        elif not player.is_dead:
+            dash_hint = font.render(
+                "SHIFT: Air Dash",
+                True,
+                (185, 225, 255),
+            )
+            screen.blit(
+                dash_hint,
+                dash_hint.get_rect(topright=(SCREEN_WIDTH - 16, 18)),
+            )
 
         player.draw_active_screen(screen)
         pygame.display.flip()

@@ -152,7 +152,13 @@ class DialogueBox:
 class MapSelectionBox:
     """Pokemon-style portal destination selection panel."""
 
-    def __init__(self, map2_cleared=False, map3_cleared=False):
+    def __init__(
+        self,
+        map2_cleared=False,
+        map3_cleared=False,
+        map4_cleared=False,
+        map5_cleared=False,
+    ):
         self.options = [
             {
                 "name": "Ember Forest",
@@ -170,6 +176,25 @@ class MapSelectionBox:
                     else "LOCKED: Clear Ember Forest"
                 ),
             },
+            {
+                "name": "Skyfall Expanse",
+                "map": "map4",
+                "locked": not map3_cleared,
+                "status": (
+                    "CLEARED" if map4_cleared
+                    else "DRAGON MISSION" if map3_cleared
+                    else "LOCKED: Clear Toad Realm"
+                ),
+            },
+            {
+                "name": "Crystal Labyrinth",
+                "map": "map5",
+                "locked": False,
+                "status": (
+                    "CLEARED" if map5_cleared
+                    else "CRYSTAL PUZZLE (TEST OPEN)"
+                ),
+            },
         ]
         self.selected = 0
         self.closed = False
@@ -177,6 +202,14 @@ class MapSelectionBox:
         self.title_font = pygame.font.Font(None, 31)
         self.option_font = pygame.font.Font(None, 25)
         self.small_font = pygame.font.Font(None, 18)
+        self.visible_rows = 3
+        self.scroll_offset = 0
+
+    def _keep_selected_visible(self):
+        if self.selected < self.scroll_offset:
+            self.scroll_offset = self.selected
+        elif self.selected >= self.scroll_offset + self.visible_rows:
+            self.scroll_offset = self.selected - self.visible_rows + 1
 
     def handle_event(self, event):
         if self.closed or event.type != pygame.KEYDOWN:
@@ -185,8 +218,10 @@ class MapSelectionBox:
             self.closed = True
         elif event.key in (pygame.K_w, pygame.K_UP):
             self.selected = (self.selected - 1) % len(self.options)
+            self._keep_selected_visible()
         elif event.key in (pygame.K_s, pygame.K_DOWN):
             self.selected = (self.selected + 1) % len(self.options)
+            self._keep_selected_visible()
         elif event.key in (
             pygame.K_e,
             pygame.K_SPACE,
@@ -215,12 +250,21 @@ class MapSelectionBox:
         )
         screen.blit(title, title.get_rect(midtop=(panel.centerx, panel.y + 17)))
 
-        for index, option in enumerate(self.options):
+        list_area = pygame.Rect(
+            panel.x + 20, panel.y + 54, panel.width - 40, 142
+        )
+        old_clip = screen.get_clip()
+        screen.set_clip(list_area)
+        visible_options = self.options[
+            self.scroll_offset:self.scroll_offset + self.visible_rows
+        ]
+        for visible_index, option in enumerate(visible_options):
+            index = self.scroll_offset + visible_index
             row = pygame.Rect(
                 panel.x + 24,
-                panel.y + 62 + index * 65,
+                panel.y + 57 + visible_index * 46,
                 panel.width - 48,
-                52,
+                40,
             )
             selected = index == self.selected
             pygame.draw.rect(
@@ -237,8 +281,19 @@ class MapSelectionBox:
             prefix = "> " if selected else "  "
             name = self.option_font.render(prefix + option["name"], True, color)
             status = self.small_font.render(option["status"], True, color)
-            screen.blit(name, (row.x + 10, row.y + 6))
-            screen.blit(status, (row.x + 29, row.y + 31))
+            screen.blit(name, (row.x + 10, row.y + 2))
+            screen.blit(status, (row.x + 29, row.y + 22))
+        screen.set_clip(old_clip)
+
+        if self.scroll_offset > 0:
+            up = self.small_font.render("▲ more", True, (55, 62, 78))
+            screen.blit(up, up.get_rect(topright=(panel.right - 18, panel.y + 42)))
+        if self.scroll_offset + self.visible_rows < len(self.options):
+            down = self.small_font.render("▼ more", True, (55, 62, 78))
+            screen.blit(
+                down,
+                down.get_rect(bottomright=(panel.right - 18, panel.bottom - 31)),
+            )
 
         hint = self.small_font.render(
             "UP/DOWN: Choose   ENTER: Travel   ESC: Cancel",

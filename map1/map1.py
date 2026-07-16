@@ -96,7 +96,9 @@ def map1(player=None, arrived_from=None):
     map_surface = load_map()
     platform_rects = create_platform_rects()
     entry_spawn = (
-        MAP2_RETURN_SPAWN if arrived_from == "map2" else PLAYER_SPAWN
+        MAP2_RETURN_SPAWN
+        if arrived_from in ("map2", "map5")
+        else PLAYER_SPAWN
     )
     if player is None:
         player = Player(*entry_spawn)
@@ -231,7 +233,10 @@ def map1(player=None, arrived_from=None):
             and player.rect.colliderect(exit_portal.rect)
         ):
             map_selection = MapSelectionBox(
-                player.map2_cleared, player.map3_cleared
+                player.map2_cleared,
+                player.map3_cleared,
+                player.map4_cleared,
+                player.map5_cleared,
             )
 
         if not player.rect.colliderect(exit_portal.rect):
