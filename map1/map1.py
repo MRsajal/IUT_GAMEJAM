@@ -19,7 +19,7 @@ PLAYER_SPAWN = (80, 180)
 MAP2_RETURN_SPAWN = (MAP_WIDTH - 80, 180)
 NPC_CENTER_X = 480
 
-MAP_PATH = Path(__file__).parent / "map.png"
+MAP_PATH = Path(__file__).parent / "maps2.png"
 
 INTRO_DIALOGUE = [
     {

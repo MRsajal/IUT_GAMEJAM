@@ -24,7 +24,7 @@ INITIAL_SLIME_POSITIONS = (220, 360, 520, 700, 860)
 REQUIRED_EMBERSTONES = 2
 REQUIRED_LEVEL = 2
 
-MAP_PATH = Path(__file__).parent / "map2.png"
+MAP_PATH = Path(__file__).parent / "maps2.png"
 
 
 def load_map():
