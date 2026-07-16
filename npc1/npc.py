@@ -67,7 +67,9 @@ class HealingNPC:
         elif event.key == pygame.K_1:
             player.craft_magic("Fire Magic")
         elif event.key == pygame.K_2:
-            player.craft_magic("Wind Magic")
+            player.craft_message = (
+                "Wind Magic is unlimited after clearing the Toad Realm."
+            )
         elif event.key == pygame.K_3:
             player.craft_shield_upgrade()
         elif event.key == pygame.K_h:
@@ -133,7 +135,7 @@ class HealingNPC:
         lines = [
             "H - Restore health (free)",
             "1 - Craft Fire Magic (Level 2, 2 Emberstones)",
-            "2 - Craft Wind Magic (Level 3, 2 Wind Crystals)",
+            "2 - Wind Magic info (unlimited after Toad Realm)",
             (
                 "3 - Improve Shield (+10 health, 1 Emberstone)  "
                 f"Cap: {player.shield_health_cap}"
