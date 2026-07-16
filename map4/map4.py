@@ -8,6 +8,7 @@ from Dragon import DragonBoss
 from player import Player
 from portal import Portal
 from .falling_stone import FallingStone, STONE_DAMAGE
+from .potion import HealthPotion
 
 
 SCREEN_WIDTH = 600
@@ -18,7 +19,7 @@ PLAYER_SPAWN = (90, 100)
 PORTAL_BOTTOM = 176
 ENTRANCE_PORTAL_X = 24
 OUTGOING_PORTAL_X = MAP_WIDTH - 24
-STONE_SPAWN_INTERVAL = 6.0
+STONE_SPAWN_INTERVAL = 1.0
 MAP_PATH = Path(__file__).parent / "map4.png"
 
 CROW_ZONES = [
@@ -81,6 +82,7 @@ def map4(player=None, arrived_from=None):
     else:
         crows, dragon = create_enemies()
     falling_stones = []
+    potions = []
     stone_spawn_timer = 0.0
 
     font = pygame.font.Font(None, 22)
@@ -152,8 +154,20 @@ def map4(player=None, arrived_from=None):
         # Match Map 3: keep a defeated enemy visible until the player's
         # attack animation has finished.
         if not player.is_attacking and not player.is_casting_fire:
+            defeated_crows = [crow for crow in crows if not crow.alive]
+            potions.extend(
+                HealthPotion(crow.rect.centerx, crow.rect.centery)
+                for crow in defeated_crows
+            )
             crows = [crow for crow in crows if crow.alive]
             if dragon is not None and not dragon.alive:
+                potions.extend(
+                    HealthPotion(
+                        dragon.rect.centerx + offset,
+                        dragon.rect.centery,
+                    )
+                    for offset in (-28, 0, 28)
+                )
                 dragon = None
                 crows.clear()
                 boss_defeated = True
@@ -164,6 +178,19 @@ def map4(player=None, arrived_from=None):
                 crow.update(delta_time, player)
             if dragon is not None:
                 dragon.update(delta_time, player)
+
+        collected_potions = [
+            potion
+            for potion in potions
+            if player.rect.colliderect(potion.rect)
+        ]
+        if collected_potions:
+            player.collect_health_potions(len(collected_potions))
+        potions = [
+            potion
+            for potion in potions
+            if potion not in collected_potions
+        ]
 
         if not player.is_dead and player.rect.top > MAP_HEIGHT:
             player.take_damage(player.health)
@@ -197,6 +224,8 @@ def map4(player=None, arrived_from=None):
             dragon.draw(screen, camera_x)
         for stone in falling_stones:
             stone.draw(screen, camera_x)
+        for potion in potions:
+            potion.draw(screen, camera_x)
         player.draw(screen, camera_x)
         player.draw_health_bar(screen)
 

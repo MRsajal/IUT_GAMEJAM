@@ -17,7 +17,7 @@ DEATH_ANIMATION_SPEED = 10
 DEATH_FRAME_COUNT = 11
 STARTING_HEALTH = 50
 STARTING_ATTACK_DAMAGE = 20
-POINTS_PER_LEVEL = 100
+POINTS_PER_LEVEL = 50
 HEALTH_PER_LEVEL = 10
 ATTACK_DAMAGE_PER_LEVEL = 5
 DEATH_POINT_PENALTY = 10
@@ -31,6 +31,7 @@ ATTACK_COOLDOWN = 0.5
 FIRE_DURATION = FIRE_FRAME_COUNT / FIRE_ANIMATION_SPEED
 FIRE_COOLDOWN = 1.0
 COMBAT_MESSAGE_DURATION = 2.0
+HEALTH_POTION_HEAL = 15
 DAMAGE_DURATION = DAMAGE_FRAME_COUNT / DAMAGE_ANIMATION_SPEED
 DEATH_DURATION = DEATH_FRAME_COUNT / DEATH_ANIMATION_SPEED
 
@@ -106,6 +107,7 @@ class Player:
         self.next_level_points = POINTS_PER_LEVEL
         self.emberstones = 0
         self.wind_crystals = 0
+        self.health_potions = 0
         self.held_magic = []
         self.magic_uses = {
             "Fire Magic": 0,
@@ -198,6 +200,10 @@ class Player:
             return True
 
         if self.active_screen is not None:
+            return True
+
+        if event.key == pygame.K_h:
+            self.use_health_potion()
             return True
 
         if event.key in (pygame.K_w, pygame.K_UP) and self.on_ground:
@@ -521,6 +527,35 @@ class Player:
         """Compatibility method for existing Map 2 code."""
         self.collect_emberstones(amount)
 
+    def heal(self, amount):
+        """Restore health without exceeding the player's maximum health."""
+        old_health = self.health
+        self.health = min(self.max_health, self.health + max(0, amount))
+        return self.health - old_health
+
+    def collect_health_potions(self, amount=1):
+        amount = max(0, amount)
+        self.health_potions += amount
+        if amount > 0:
+            self.combat_message = "Potion collected - press H to use"
+            self.combat_message_time_left = COMBAT_MESSAGE_DURATION
+
+    def use_health_potion(self):
+        if self.health_potions <= 0:
+            self.combat_message = "No Health Potions remaining!"
+            self.combat_message_time_left = COMBAT_MESSAGE_DURATION
+            return False
+        if self.health >= self.max_health:
+            self.combat_message = "Health is already full."
+            self.combat_message_time_left = COMBAT_MESSAGE_DURATION
+            return False
+
+        healed = self.heal(HEALTH_POTION_HEAL)
+        self.health_potions -= 1
+        self.combat_message = f"Health Potion used: +{healed} HP"
+        self.combat_message_time_left = COMBAT_MESSAGE_DURATION
+        return True
+
     def set_position(self, x, y):
         """Move to a map spawn without resetting player stats."""
         self.rect.topleft = (x, y)
@@ -741,12 +776,19 @@ class Player:
         bar_height = 16
         health_ratio = self.health / self.max_health
 
+        if health_ratio < 0.25:
+            health_color = (215, 55, 55)
+        elif health_ratio <= 0.50:
+            health_color = (235, 200, 55)
+        else:
+            health_color = (45, 190, 75)
+
         pygame.draw.rect(
             screen, (35, 35, 35), (bar_x, bar_y, bar_width, bar_height)
         )
         pygame.draw.rect(
             screen,
-            (45, 190, 75),
+            health_color,
             (bar_x, bar_y, round(bar_width * health_ratio), bar_height),
         )
         pygame.draw.rect(
@@ -887,13 +929,14 @@ class Player:
             f"Money: {self.money}",
             f"Emberstones: {self.emberstones}",
             f"Wind Crystals: {self.wind_crystals}",
+            f"Health Potions: {self.health_potions} (press H to use)",
             "Magic held:",
         ]
-        y = panel.y + 58
+        y = panel.y + 54
         for detail in details:
             text = self.menu_font.render(detail, True, (235, 235, 240))
             screen.blit(text, (panel.x + 24, y))
-            y += 27
+            y += 23
 
         magic_names = list(dict.fromkeys(self.held_magic))
         if not magic_names:
@@ -912,7 +955,7 @@ class Player:
                 magic_line, True, (255, 170, 100)
             )
             screen.blit(text, (panel.x + 42, y))
-            y += 22
+            y += 20
 
         close_text = self.ui_font.render(
             "Press M or ESC to close", True, (175, 180, 195)

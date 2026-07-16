@@ -4,7 +4,7 @@ import pygame
 
 
 STONE_PATH = Path(__file__).parent / "stone.png"
-STONE_SIZE = (24, 22)
+STONE_SIZE = (18, 17)
 STONE_FALL_SPEED = 170
 STONE_DAMAGE = 15
 
