@@ -6,6 +6,7 @@ os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 import pygame
 
 from dialogue import MapSelectionBox
+from ghosts.ghost import INTRO_PAGES
 from map7.map7 import create_platform_rects, load_map, map7
 from map7.interactions import (
     CLOCK_CORRECT_TIME,
@@ -125,8 +126,31 @@ class Map7Tests(unittest.TestCase):
         self.assertTrue(player.map7_candles_solved)
         self.assertTrue(player.map7_mission_complete)
 
+    def test_intro_ghost_provides_all_puzzle_clues(self):
+        full_text = " ".join(INTRO_PAGES)
+        self.assertIn("10:10", full_text)
+        self.assertIn("Black first, Red second", full_text)
+        self.assertIn("looks east", full_text)
+
+    def test_intro_ghost_appears_on_first_entry_without_quest_flag(self):
+        player = Player(0, 0)
+        for _ in INTRO_PAGES:
+            pygame.event.post(
+                pygame.event.Event(pygame.KEYDOWN, key=pygame.K_RETURN)
+            )
+        pygame.event.post(
+            pygame.event.Event(pygame.KEYDOWN, key=pygame.K_ESCAPE)
+        )
+
+        next_map, returned_player, arrived_from = map7(player, "map1")
+        self.assertTrue(player.map7_ghost_intro_seen)
+        self.assertEqual(next_map, "map1")
+        self.assertIs(returned_player, player)
+        self.assertEqual(arrived_from, "map7")
+
     def test_escape_returns_to_map1_and_preserves_player(self):
         player = Player(0, 0)
+        player.map7_ghost_intro_seen = True
         pygame.event.post(
             pygame.event.Event(pygame.KEYDOWN, key=pygame.K_ESCAPE)
         )

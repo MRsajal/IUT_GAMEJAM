@@ -73,6 +73,12 @@ MAGIC_RECIPES = [
         "emberstone_cost": 2,
         "uses_per_craft": 3,
     },
+    {
+        "name": "Fly Magic",
+        "required_level": 3,
+        "wind_crystal_cost": 2,
+        "uses_per_craft": 1,
+    },
 ]
 
 
@@ -163,6 +169,11 @@ class Player:
         self.map7_candles_lit = []
         self.map7_candles_solved = False
         self.map7_mission_complete = False
+        self.map7_quest_accepted = False
+        self.map7_ghost_intro_seen = False
+        self.map7_ghost_reward_seen = False
+        self.map7_has_book = False
+        self.map7_book_delivered = False
         self.active_screen = None
         self.craft_message = ""
 
@@ -274,24 +285,20 @@ class Player:
 
         if (
             event.key == pygame.K_g
-            and (allow_flight_activation or self.map3_cleared)
+            and allow_flight_activation
             and (self.is_flying or not require_active_flight)
-            and self.map3_cleared
         ):
+            if self.magic_uses.get("Fly Magic", 0) <= 0:
+                self.combat_message = (
+                    "No Fly Magic spells remaining! Craft one at level 3."
+                )
+                self.combat_message_time_left = COMBAT_MESSAGE_DURATION
+                return True
+
             self.flight_time_left += FLIGHT_DURATION
             self.velocity_y = 0.0
             self.on_ground = False
-            return True
-
-        if (
-            event.key == pygame.K_g
-            and not self.map3_cleared
-            and allow_flight_activation
-        ):
-            self.combat_message = (
-                "Wind Magic unlocks after clearing the Toad Realm."
-            )
-            self.combat_message_time_left = COMBAT_MESSAGE_DURATION
+            self._consume_magic_use("Fly Magic")
             return True
 
         if (
@@ -1044,42 +1051,6 @@ class Player:
             (255, 255, 255),
         )
         screen.blit(label, (bar_x + 4, bar_y - 1))
-
-        resource_lines = [
-            f"Ember Crystals: {self.emberstones}",
-            f"Wind Crystals: {self.wind_crystals}",
-        ]
-        if self.level >= 2:
-            resource_lines.append(
-                f"Fire Magic: {self.magic_uses.get('Fire Magic', 0)} uses"
-            )
-        if self.map3_cleared:
-            resource_lines.append("Wind Magic: UNLIMITED")
-
-        resource_panel = pygame.Rect(
-            screen.get_width() - 190,
-            8,
-            182,
-            8 + len(resource_lines) * 18,
-        )
-        panel_surface = pygame.Surface(
-            resource_panel.size, pygame.SRCALPHA
-        )
-        panel_surface.fill((18, 22, 42, 190))
-        screen.blit(panel_surface, resource_panel)
-        pygame.draw.rect(
-            screen, (120, 190, 225), resource_panel, 1, border_radius=5
-        )
-        for index, line in enumerate(resource_lines):
-            color = (
-                (255, 160, 95) if line.startswith("Fire")
-                else (125, 225, 255)
-            )
-            text = self.ui_font.render(line, True, color)
-            screen.blit(
-                text,
-                (resource_panel.x + 7, resource_panel.y + 5 + index * 18),
-            )
 
         points_text = (
             f"Points: {self.points} (MAX LEVEL)"

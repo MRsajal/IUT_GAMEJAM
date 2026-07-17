@@ -66,27 +66,6 @@ def create_emberstone(slime, ground_y):
     return None
 
 
-def draw_objective(screen, player):
-    """Draw persistent Ember Forest mission progress."""
-    font = pygame.font.Font(None, 19)
-    if player.map2_cleared:
-        message = "Ember Forest cleared! C: Craft Fire Magic"
-        color = (135, 255, 160)
-    else:
-        stones = min(
-            player.total_emberstones_collected, REQUIRED_EMBERSTONES
-        )
-        message = (
-            f"Objective: Level {player.level}/{REQUIRED_LEVEL}   "
-            f"Emberstones {stones}/{REQUIRED_EMBERSTONES}"
-        )
-        color = (255, 235, 145)
-    text_surface = font.render(message, True, color)
-    background = text_surface.get_rect(topright=(590, 13)).inflate(10, 6)
-    pygame.draw.rect(screen, (22, 27, 38), background, border_radius=5)
-    screen.blit(text_surface, text_surface.get_rect(topright=(590, 13)))
-
-
 def map2(player=None, arrived_from=None):
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("Map 2")
@@ -243,7 +222,6 @@ def map2(player=None, arrived_from=None):
             slime.draw(screen, camera_x)
         player.draw(screen, camera_x)
         player.draw_health_bar(screen)
-        draw_objective(screen, player)
         player.draw_active_screen(screen)
 
         pygame.display.flip()

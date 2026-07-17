@@ -126,10 +126,10 @@ class MissionNPC:
         )
 
     def warn_about_flight(self, player):
-        if player.map3_cleared:
+        if player.magic_uses.get("Fly Magic", 0) > 0:
             self.warning = "Activate Fly Magic with G before leaving!"
         else:
-            self.warning = "Clear the Toad Realm to unlock Wind Magic!"
+            self.warning = "Craft Fly Magic before entering Map 4!"
         self.warning_time_left = NPC_WARNING_DURATION
 
     def draw(self, screen, camera_x, player):
@@ -216,7 +216,7 @@ class MissionNPC:
         screen.blit(sell, (panel.x + 22, panel.y + 121))
 
         flight_tip = self.font.render(
-            "Map 4 warning: press G to activate unlimited Wind Magic.",
+            "Map 4 warning: each Fly Magic spell lasts 30 seconds.",
             True,
             (135, 220, 255),
         )

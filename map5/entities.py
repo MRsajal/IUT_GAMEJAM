@@ -150,7 +150,12 @@ class Shrine:
         player.magic_uses["Fire Magic"] = max(
             3, player.magic_uses.get("Fire Magic", 0)
         )
-        player.combat_message = "Shrine restored 3 Fire Magic charges."
+        player.magic_uses["Fly Magic"] = max(
+            2, player.magic_uses.get("Fly Magic", 0)
+        )
+        player.combat_message = (
+            "Shrine restored 3 Fire and 2 temporary Fly charges."
+        )
         player.combat_message_time_left = 2.0
 
     def draw(self, screen, camera_x):
