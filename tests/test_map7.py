@@ -1,5 +1,6 @@
 import os
 import unittest
+from pathlib import Path
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 
@@ -7,7 +8,13 @@ import pygame
 
 from dialogue import MapSelectionBox
 from ghosts.ghost import INTRO_PAGES
-from map7.map7 import create_platform_rects, load_map, map7
+from map7.map7 import (
+    PUZZLE_TIME_LIMIT,
+    create_platform_rects,
+    load_map,
+    map7,
+    reset_timed_puzzle,
+)
 from map7.interactions import (
     CLOCK_CORRECT_TIME,
     InteractionWindow,
@@ -126,11 +133,27 @@ class Map7Tests(unittest.TestCase):
         self.assertTrue(player.map7_candles_solved)
         self.assertTrue(player.map7_mission_complete)
 
-    def test_intro_ghost_provides_all_puzzle_clues(self):
+    def test_intro_ghost_gives_short_timed_challenge(self):
         full_text = " ".join(INTRO_PAGES)
-        self.assertIn("10:10", full_text)
-        self.assertIn("Black first, Red second", full_text)
-        self.assertIn("looks east", full_text)
+        self.assertEqual(len(INTRO_PAGES), 1)
+        self.assertIn("1 minute 30 seconds", full_text)
+        self.assertIn("rewarded", full_text)
+
+    def test_timed_challenge_reset_clears_every_puzzle(self):
+        player = Player(0, 0)
+        player.map7_painting_solved = True
+        player.map7_clock_solved = True
+        player.map7_candles_lit[:] = [1, 2, 5]
+        player.map7_candles_solved = True
+        player.map7_mission_complete = True
+
+        reset_timed_puzzle(player)
+
+        self.assertFalse(player.map7_painting_solved)
+        self.assertFalse(player.map7_clock_solved)
+        self.assertEqual(player.map7_candles_lit, [])
+        self.assertFalse(player.map7_mission_complete)
+        self.assertEqual(player.map7_puzzle_time_left, PUZZLE_TIME_LIMIT)
 
     def test_intro_ghost_appears_on_first_entry_without_quest_flag(self):
         player = Player(0, 0)
@@ -158,6 +181,11 @@ class Map7Tests(unittest.TestCase):
         self.assertEqual(next_map, "map1")
         self.assertIs(returned_player, player)
         self.assertEqual(arrived_from, "map7")
+
+    def test_map7_book_exit_returns_to_map6(self):
+        source = Path(__file__).parents[1] / "map7" / "map7.py"
+        map7_source = source.read_text(encoding="utf-8")
+        self.assertIn('next_map = "map6"', map7_source)
 
 
 if __name__ == "__main__":

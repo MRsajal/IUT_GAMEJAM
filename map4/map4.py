@@ -5,7 +5,6 @@ import pygame
 
 from crow import Crow
 from Dragon import DragonBoss
-from npc3 import QuestNPC
 from player import Player
 from portal import Portal
 from .falling_stone import FallingStone, STONE_DAMAGE
@@ -17,11 +16,10 @@ SCREEN_HEIGHT = 320
 MAP_WIDTH = 960
 MAP_HEIGHT = 320
 PLAYER_SPAWN = (90, 100)
-MAP7_RETURN_SPAWN = (840, 100)
+MAP6_RETURN_SPAWN = (840, 100)
 PORTAL_BOTTOM = 176
 ENTRANCE_PORTAL_X = 24
 OUTGOING_PORTAL_X = MAP_WIDTH - 24
-NPC3_X = OUTGOING_PORTAL_X - 48
 STONE_SPAWN_INTERVAL = 1.0
 MAP_PATH = Path(__file__).parent / "map4.png"
 
@@ -65,15 +63,15 @@ def map4(player=None, arrived_from=None):
     map_surface = load_map()
 
     spawn_position = (
-        MAP7_RETURN_SPAWN if arrived_from == "map7" else PLAYER_SPAWN
+        MAP6_RETURN_SPAWN if arrived_from == "map6" else PLAYER_SPAWN
     )
     if player is None:
         player = Player(*spawn_position)
     else:
         # set_position deliberately preserves an active flight timer.
         player.set_position(*spawn_position)
-    if arrived_from == "map7":
-        # Portal travel grants enough lift to safely meet NPC3 and leave.
+    if arrived_from == "map6":
+        # The return portal provides enough lift to cross the bottomless map.
         player.flight_time_left = max(player.flight_time_left, 30.0)
 
     entrance_portal = Portal(
@@ -90,9 +88,6 @@ def map4(player=None, arrived_from=None):
         dragon = None
     else:
         crows, dragon = create_enemies()
-    quest_npc = QuestNPC(center_x=NPC3_X, bottom_y=PORTAL_BOTTOM)
-    if boss_defeated and arrived_from == "map7" and player.map7_has_book:
-        quest_npc.open(player)
     falling_stones = []
     potions = []
     stone_spawn_timer = 0.0
@@ -110,32 +105,13 @@ def map4(player=None, arrived_from=None):
             if event.type == pygame.QUIT:
                 running = False
             else:
-                event_consumed = False
-                npc_action = None
-                if quest_npc.active:
-                    event_consumed, npc_action = quest_npc.handle_event(event)
-                elif (
-                    boss_defeated
-                    and event.type == pygame.KEYDOWN
-                    and event.key == pygame.K_e
-                    and not player.ui_open
-                    and quest_npc.is_near(player)
-                ):
-                    quest_npc.open(player)
-                    event_consumed = True
-                else:
-                    # Extra spells extend flight but cannot restart it here.
-                    event_consumed = player.handle_event(
-                        event,
-                        allow_flight_activation=True,
-                        require_active_flight=True,
-                        allow_flight_dash=True,
-                    )
-
-                if npc_action == "travel_map7":
-                    next_map = "map7"
-                    next_arrival_from = "map4"
-                    running = False
+                # Extra spells extend flight but cannot restart it here.
+                event_consumed = player.handle_event(
+                    event,
+                    allow_flight_activation=True,
+                    require_active_flight=True,
+                    allow_flight_dash=True,
+                )
                 if (
                     not event_consumed
                     and event.type == pygame.KEYDOWN
@@ -143,7 +119,7 @@ def map4(player=None, arrived_from=None):
                 ):
                     running = False
 
-        game_ui_open = player.ui_open or quest_npc.active
+        game_ui_open = player.ui_open
         if not game_ui_open:
             damage_targets = list(crows)
             if dragon is not None:
@@ -184,7 +160,6 @@ def map4(player=None, arrived_from=None):
         entrance_portal.update(delta_time)
         if boss_defeated:
             outgoing_portal.update(delta_time)
-            quest_npc.update(delta_time)
 
         # Match Map 3: keep a defeated enemy visible until the player's
         # attack animation has finished.
@@ -243,6 +218,15 @@ def map4(player=None, arrived_from=None):
             next_map = "map1" if arrived_from == "map1" else "map3"
             next_arrival_from = "map4"
             running = False
+        elif (
+            boss_defeated
+            and not player.is_dead
+            and not game_ui_open
+            and player.rect.colliderect(outgoing_portal.rect)
+        ):
+            next_map = "map6"
+            next_arrival_from = "map4"
+            running = False
 
         camera_x = player.rect.centerx - SCREEN_WIDTH / 2
         camera_x = max(0, min(camera_x, MAP_WIDTH - SCREEN_WIDTH))
@@ -261,8 +245,6 @@ def map4(player=None, arrived_from=None):
             stone.draw(screen, camera_x)
         for potion in potions:
             potion.draw(screen, camera_x)
-        if boss_defeated:
-            quest_npc.draw(screen, camera_x, player)
         player.draw(screen, camera_x, use_flying_sprites=True)
         player.draw_health_bar(screen)
 
@@ -288,8 +270,6 @@ def map4(player=None, arrived_from=None):
             )
 
         player.draw_active_screen(screen)
-        if boss_defeated:
-            quest_npc.draw_window(screen)
         pygame.display.flip()
 
     return next_map, player, next_arrival_from

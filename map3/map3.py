@@ -309,7 +309,7 @@ def map3(player=None, arrived_from=None):
             and not game_ui_open
             and player.rect.colliderect(return_portal.rect)
         ):
-            next_map = "map1" if player.map2_cleared else "map2"
+            next_map = "map2"
             next_arrival_from = "map3"
             running = False
         elif (

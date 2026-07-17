@@ -25,6 +25,7 @@ TILE_SIZE = 16
 PLAYER_SPAWN = (60, 80)
 EXIT_PORTAL_X = MAP_WIDTH - 28
 EXIT_PORTAL_BOTTOM = 288
+PUZZLE_TIME_LIMIT = 90.0
 MAP_PATH = Path(__file__).parent / "map7.png"
 PLATFORM_PATH = Path(__file__).parent / "map7_Tile Layer 2.csv"
 
@@ -55,6 +56,35 @@ def create_platform_rects():
                         )
                     )
     return platform_rects
+
+
+def reset_timed_puzzle(player):
+    player.map7_painting_angle = 0
+    player.map7_painting_solved = False
+    player.map7_clock_hour = 12
+    player.map7_clock_minute = 0
+    player.map7_clock_solved = False
+    player.map7_candles_lit.clear()
+    player.map7_candles_solved = False
+    player.map7_mission_complete = False
+    player.map7_puzzle_time_left = PUZZLE_TIME_LIMIT
+    player.map7_puzzle_timer_started = True
+    player.combat_message = "Time expired. The puzzles have reset!"
+    player.combat_message_time_left = 3.0
+
+
+def draw_puzzle_timer(screen, player):
+    seconds_left = max(0, int(player.map7_puzzle_time_left + 0.99))
+    minutes, seconds = divmod(seconds_left, 60)
+    font = pygame.font.Font(None, 24)
+    text = font.render(
+        f"Time: {minutes}:{seconds:02d}", True, (255, 225, 135)
+    )
+    rect = text.get_rect(topright=(SCREEN_WIDTH - 14, 14))
+    pygame.draw.rect(
+        screen, (25, 23, 38), rect.inflate(12, 7), border_radius=5
+    )
+    screen.blit(text, rect)
 
 
 def map7(player=None, arrived_from=None):
@@ -128,7 +158,7 @@ def map7(player=None, arrived_from=None):
                 and event.type == pygame.KEYDOWN
                 and event.key == pygame.K_ESCAPE
             ):
-                next_map = "map1"
+                next_map = "map6" if arrived_from == "map6" else "map1"
                 next_arrival_from = "map7"
                 running = False
 
@@ -140,6 +170,25 @@ def map7(player=None, arrived_from=None):
                 MAP_WIDTH,
                 map_height=MAP_HEIGHT,
             )
+
+        timed_challenge_active = (
+            player.map7_quest_accepted
+            and player.map7_ghost_intro_seen
+            and not player.map7_mission_complete
+            and not player.map7_has_book
+        )
+        if timed_challenge_active:
+            if not player.map7_puzzle_timer_started:
+                player.map7_puzzle_timer_started = True
+                player.map7_puzzle_time_left = PUZZLE_TIME_LIMIT
+            else:
+                player.map7_puzzle_time_left = max(
+                    0.0, player.map7_puzzle_time_left - delta_time
+                )
+                if player.map7_puzzle_time_left <= 0:
+                    reset_timed_puzzle(player)
+        elif player.map7_mission_complete:
+            player.map7_puzzle_timer_started = False
 
         if not player.is_dead and player.rect.top > MAP_HEIGHT:
             player.take_damage(player.health)
@@ -174,7 +223,7 @@ def map7(player=None, arrived_from=None):
             and ghost_window is None
             and player.rect.colliderect(exit_portal.rect)
         ):
-            next_map = "map4"
+            next_map = "map6"
             next_arrival_from = "map7"
             running = False
 
@@ -201,11 +250,15 @@ def map7(player=None, arrived_from=None):
             )
         player.draw(screen, camera_x)
         player.draw_health_bar(screen)
+        if timed_challenge_active:
+            draw_puzzle_timer(screen, player)
         player.draw_active_screen(screen)
         if interaction_window is not None:
             interaction_window.draw(screen)
         if ghost_window is not None:
             ghost_window.draw(screen)
+            if ghost_window.kind == "intro":
+                ghost.draw(screen, camera_x)
         pygame.display.flip()
 
     return next_map, player, next_arrival_from

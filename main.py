@@ -6,6 +6,7 @@ from map3.map3 import map3
 from opening_video import SLIME_VIDEO_PATH, play_opening_video, play_video
 from map4.map4 import map4
 from map5.map5 import map5
+from map6.map6 import map6
 from map7.map7 import map7
 
 
@@ -22,6 +23,7 @@ def main():
         "map3": map3,
         "map4": map4,
         "map5": map5,
+        "map6": map6,
         "map7": map7,
     }
     current_map = "map1"

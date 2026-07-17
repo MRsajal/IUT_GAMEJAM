@@ -10,20 +10,8 @@ GHOST_ANIMATION_SPEED = 7
 
 INTRO_PAGES = (
     (
-        "Welcome to my manor. Complete the three puzzles and I will "
-        "reveal the hidden Book of Arcana."
-    ),
-    (
-        "Time was my greatest companion. Set the grandfather clock to "
-        "10:10, the hour when I began my nightly studies."
-    ),
-    (
-        "Light the candles in this order: Black first, Red second, and "
-        "White last. A wrong flame will extinguish the entire ritual."
-    ),
-    (
-        "Finally, rotate the old portrait until its face looks east. "
-        "Press E near each object to interact with it."
+        "Solve the manor's puzzles within 1 minute 30 seconds. Succeed, "
+        "and you will be rewarded."
     ),
 )
 REWARD_PAGES = (
@@ -106,7 +94,11 @@ class GhostWindow:
 
         text_left = panel.x + 27
         text_width = panel.width - 54
-        if self.kind == "reward":
+        if self.kind == "intro":
+            # Reserve the left side for the animated ghost sprite.
+            text_left = panel.x + 125
+            text_width = panel.right - text_left - 24
+        elif self.kind == "reward":
             book_rect = self._book_image.get_rect(
                 midleft=(panel.x + 23, panel.centery + 8)
             )

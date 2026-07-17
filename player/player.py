@@ -19,9 +19,8 @@ DEATH_ANIMATION_SPEED = 10
 DEATH_FRAME_COUNT = 11
 STARTING_HEALTH = 50
 STARTING_ATTACK_DAMAGE = 20
-POINTS_PER_LEVEL = 100
-MAX_LEVEL = 4
 POINTS_PER_LEVEL = 50
+MAX_LEVEL = 10
 HEALTH_PER_LEVEL = 10
 ATTACK_DAMAGE_PER_LEVEL = 5
 DEATH_POINT_PENALTY = 10
@@ -61,6 +60,12 @@ SHIELD_HEALTH_CAPS = {
     2: 80,
     3: 100,
     4: 120,
+    5: 140,
+    6: 160,
+    7: 180,
+    8: 200,
+    9: 220,
+    10: 240,
 }
 SHIELD_HEALTH_INCREASE = 10
 SHIELD_EMBERSTONE_COST = 1
@@ -174,6 +179,8 @@ class Player:
         self.map7_ghost_reward_seen = False
         self.map7_has_book = False
         self.map7_book_delivered = False
+        self.map7_puzzle_time_left = 90.0
+        self.map7_puzzle_timer_started = False
         self.active_screen = None
         self.craft_message = ""
 
