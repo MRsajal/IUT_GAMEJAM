@@ -155,6 +155,14 @@ class Player:
         self.map4_cleared = False
         self.map5_cleared = False
         self.map5_checkpoint = 0
+        self.map7_painting_angle = 0
+        self.map7_painting_solved = False
+        self.map7_clock_hour = 12
+        self.map7_clock_minute = 0
+        self.map7_clock_solved = False
+        self.map7_candles_lit = []
+        self.map7_candles_solved = False
+        self.map7_mission_complete = False
         self.active_screen = None
         self.craft_message = ""
 

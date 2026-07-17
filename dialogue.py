@@ -195,6 +195,12 @@ class MapSelectionBox:
                     else "CRYSTAL PUZZLE (TEST OPEN)"
                 ),
             },
+            {
+                "name": "Map 7",
+                "map": "map7",
+                "locked": False,
+                "status": "IMAGE TEST OPEN",
+            },
         ]
         self.selected = 0
         self.closed = False

@@ -23,8 +23,10 @@ class Map5PuzzleTests(unittest.TestCase):
 
     def test_portal_is_visible_and_open_for_testing(self):
         portal = MapSelectionBox(True, True, False, False)
-        self.assertEqual(portal.options[-1]["map"], "map5")
-        self.assertFalse(portal.options[-1]["locked"])
+        map5_option = next(
+            option for option in portal.options if option["map"] == "map5"
+        )
+        self.assertFalse(map5_option["locked"])
 
     def test_matching_crystal_activates_socket(self):
         crystal = MovableCrystal(100, GROUND_Y, CYAN)
