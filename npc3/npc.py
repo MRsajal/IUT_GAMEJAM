@@ -20,8 +20,9 @@ class QuestWindow:
         if player.map7_has_book:
             self.mode = "handover"
             self.text = (
-                "You found it... my late wife's Book of Arcana. "
-                "Thank you for bringing her last treasure home."
+                "You found my wife's Book of Arcana. Its final lesson "
+                "masters Fire and Fly Magic forever, without crystals. "
+                "Hand it to me, and I will teach you now."
             )
         elif player.map7_book_delivered:
             self.mode = "thanks"
@@ -79,6 +80,7 @@ class QuestWindow:
         ):
             self.player.map7_has_book = False
             self.player.map7_book_delivered = True
+            self.player.arcana_magic_mastered = True
             self.closed = True
             return True, "book_delivered"
 

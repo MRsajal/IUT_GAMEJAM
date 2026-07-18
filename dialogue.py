@@ -158,6 +158,7 @@ class MapSelectionBox:
         map3_cleared=False,
         map4_cleared=False,
         map5_cleared=False,
+        map7_cleared=False,
     ):
         self.options = [
             {
@@ -200,6 +201,16 @@ class MapSelectionBox:
                 "map": "map7",
                 "locked": False,
                 "status": "IMAGE TEST OPEN",
+            },
+            {
+                "name": "Arcana Gate",
+                "map": "map6",
+                "locked": not map7_cleared,
+                "status": (
+                    "OPEN: NPC3 AND FINAL DOOR"
+                    if map7_cleared
+                    else "LOCKED: Complete Map 7"
+                ),
             },
         ]
         self.selected = 0

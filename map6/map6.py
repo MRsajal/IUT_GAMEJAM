@@ -44,6 +44,10 @@ def door_is_open(player):
     return player.map7_book_delivered
 
 
+def player_is_near_door(player, door_rect):
+    return door_rect.inflate(36, 20).colliderect(player.rect)
+
+
 def create_platform_rects():
     return [
         pygame.Rect(
@@ -75,6 +79,7 @@ def map6(player=None, arrived_from=None):
     background = load_map()
     door_image = load_door()
     door_rect = door_image.get_rect(midbottom=(DOOR_X, GROUND_Y))
+    door_font = pygame.font.Font(None, 18)
     platform_rects = create_platform_rects()
 
     spawn = MAP7_RETURN_SPAWN if arrived_from == "map7" else PLAYER_SPAWN
@@ -113,6 +118,16 @@ def map6(player=None, arrived_from=None):
                 and quest_npc.is_near(player)
             ):
                 quest_npc.open(player)
+                event_consumed = True
+            elif (
+                event.type == pygame.KEYDOWN
+                and event.key == pygame.K_e
+                and door_is_open(player)
+                and player_is_near_door(player, door_rect)
+            ):
+                next_map = "map8"
+                next_arrival_from = "map6"
+                running = False
                 event_consumed = True
             else:
                 # Carried flight is cancelled on entry, but a new spell works.
@@ -174,6 +189,23 @@ def map6(player=None, arrived_from=None):
                 door_image,
                 door_rect.move(-round(camera_x), 0),
             )
+            if player_is_near_door(player, door_rect):
+                prompt = door_font.render(
+                    "E: Enter the final arena", True, (255, 235, 150)
+                )
+                prompt_rect = prompt.get_rect(
+                    midbottom=(
+                        door_rect.centerx - round(camera_x),
+                        door_rect.top - 5,
+                    )
+                )
+                pygame.draw.rect(
+                    screen,
+                    (25, 22, 35),
+                    prompt_rect.inflate(10, 6),
+                    border_radius=5,
+                )
+                screen.blit(prompt, prompt_rect)
         entrance_portal.draw(screen, camera_x)
         quest_npc.draw(screen, camera_x, player)
         player.draw(screen, camera_x)

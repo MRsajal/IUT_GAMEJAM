@@ -240,6 +240,7 @@ def map1(player=None, arrived_from=None):
                 player.map3_cleared,
                 player.map4_cleared,
                 player.map5_cleared,
+                player.map7_mission_complete,
             )
 
         if not player.rect.colliderect(exit_portal.rect):

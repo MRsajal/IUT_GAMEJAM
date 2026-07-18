@@ -9,6 +9,7 @@ import pygame
 from dialogue import MapSelectionBox
 from ghosts.ghost import INTRO_PAGES
 from map7.map7 import (
+    PLAYER_SPAWN,
     PUZZLE_TIME_LIMIT,
     create_platform_rects,
     load_map,
@@ -43,6 +44,29 @@ class Map7Tests(unittest.TestCase):
             item for item in selection.options if item["map"] == "map7"
         )
         self.assertFalse(option["locked"])
+
+    def test_map6_portal_unlocks_only_after_map7_completion(self):
+        locked = MapSelectionBox()
+        locked_option = next(
+            item for item in locked.options if item["map"] == "map6"
+        )
+        self.assertTrue(locked_option["locked"])
+
+        unlocked = MapSelectionBox(
+            map7_cleared=True
+        )
+        unlocked_option = next(
+            item for item in unlocked.options if item["map"] == "map6"
+        )
+        self.assertFalse(unlocked_option["locked"])
+
+    def test_map7_spawn_is_next_to_the_riddle_note(self):
+        note = next(
+            item for item in create_interactables()
+            if item.object_type == 0
+        )
+        spawn_rect = pygame.Rect(*PLAYER_SPAWN, 24, 40)
+        self.assertTrue(note.rect.inflate(110, 110).colliderect(spawn_rect))
 
     def test_map7_keeps_its_native_world_size(self):
         self.assertEqual(load_map().get_size(), (960, 320))

@@ -8,6 +8,7 @@ from map4.map4 import map4
 from map5.map5 import map5
 from map6.map6 import map6
 from map7.map7 import map7
+from map8.map8 import map8
 
 
 def main():
@@ -25,6 +26,7 @@ def main():
         "map5": map5,
         "map6": map6,
         "map7": map7,
+        "map8": map8,
     }
     current_map = "map1"
     player = None

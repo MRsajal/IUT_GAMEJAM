@@ -128,7 +128,32 @@ class FlyMagicTests(unittest.TestCase):
         self.assertTrue(consumed)
         self.assertEqual(action, "book_delivered")
         self.assertTrue(door_is_open(player))
+        self.assertTrue(player.arcana_magic_mastered)
         self.assertEqual(load_door().get_size(), DOOR_SIZE)
+
+    def test_book_mastery_makes_fire_and_fly_unlimited(self):
+        player = Player(80, 100)
+        player.arcana_magic_mastered = True
+        fire = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_f)
+        fly = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_g)
+
+        self.assertTrue(player.handle_event(fire))
+        self.assertTrue(player.is_casting_fire)
+        self.assertEqual(player.magic_uses["Fire Magic"], 0)
+
+        self.assertTrue(
+            player.handle_event(fly, allow_flight_activation=True)
+        )
+        self.assertEqual(player.flight_time_left, FLIGHT_DURATION)
+        self.assertEqual(player.magic_uses["Fly Magic"], 0)
+
+    def test_mastered_magic_never_costs_crafting_stones(self):
+        player = Player(80, 100)
+        player.arcana_magic_mastered = True
+        self.assertTrue(player.craft_magic("Fire Magic"))
+        self.assertTrue(player.craft_magic("Fly Magic"))
+        self.assertEqual(player.emberstones, 0)
+        self.assertEqual(player.wind_crystals, 0)
 
 
 if __name__ == "__main__":

@@ -179,6 +179,8 @@ class Player:
         self.map7_ghost_reward_seen = False
         self.map7_has_book = False
         self.map7_book_delivered = False
+        self.arcana_magic_mastered = False
+        self.map8_cleared = False
         self.map7_puzzle_time_left = 90.0
         self.map7_puzzle_timer_started = False
         self.active_screen = None
@@ -295,7 +297,10 @@ class Player:
             and allow_flight_activation
             and (self.is_flying or not require_active_flight)
         ):
-            if self.magic_uses.get("Fly Magic", 0) <= 0:
+            if (
+                not self.arcana_magic_mastered
+                and self.magic_uses.get("Fly Magic", 0) <= 0
+            ):
                 self.combat_message = (
                     "No Fly Magic spells remaining! Craft one at level 3."
                 )
@@ -305,11 +310,13 @@ class Player:
             self.flight_time_left += FLIGHT_DURATION
             self.velocity_y = 0.0
             self.on_ground = False
-            self._consume_magic_use("Fly Magic")
+            if not self.arcana_magic_mastered:
+                self._consume_magic_use("Fly Magic")
             return True
 
         if (
             event.key == pygame.K_f
+            and not self.arcana_magic_mastered
             and self.magic_uses.get("Fire Magic", 0) <= 0
         ):
             self.combat_message = "No Fire Magic attacks remaining!"
@@ -318,7 +325,10 @@ class Player:
 
         if (
             event.key == pygame.K_f
-            and self.magic_uses.get("Fire Magic", 0) > 0
+            and (
+                self.arcana_magic_mastered
+                or self.magic_uses.get("Fire Magic", 0) > 0
+            )
             and self.fire_cooldown_left <= 0
             and not self.is_attacking
             and not self.is_casting_fire
@@ -326,7 +336,8 @@ class Player:
             self.fire_time_left = FIRE_DURATION
             self.fire_cooldown_left = FIRE_COOLDOWN
             self.fire_has_dealt_damage = False
-            self._consume_magic_use("Fire Magic")
+            if not self.arcana_magic_mastered:
+                self._consume_magic_use("Fire Magic")
             return True
 
         if (
@@ -372,6 +383,15 @@ class Player:
         return self.emberstones
 
     def craft_magic(self, magic_name):
+        if self.arcana_magic_mastered and magic_name in (
+            "Fire Magic",
+            "Fly Magic",
+        ):
+            self.craft_message = (
+                f"{magic_name} is permanently mastered. No stones needed."
+            )
+            return True
+
         recipe = next(
             (
                 item
@@ -1136,27 +1156,42 @@ class Player:
             for recipe_number, recipe in enumerate(
                 unlocked_recipes, start=1
             ):
-                if recipe.get("emberstone_cost"):
+                if (
+                    self.arcana_magic_mastered
+                    and recipe["name"] in ("Fire Magic", "Fly Magic")
+                ):
+                    recipe_line = (
+                        f"{recipe_number}. {recipe['name']} - "
+                        "MASTERED (UNLIMITED)"
+                    )
+                elif recipe.get("emberstone_cost"):
                     cost_text = (
                         f"{recipe['emberstone_cost']} Emberstones"
+                    )
+                    recipe_line = (
+                        f"{recipe_number}. {recipe['name']} - "
+                        f"{cost_text} "
+                        f"(+{recipe.get('uses_per_craft', 1)} uses)"
                     )
                 else:
                     cost_text = (
                         f"{recipe.get('wind_crystal_cost', 0)} "
                         "Wind Crystals"
                     )
-                recipe_line = (
-                    f"{recipe_number}. {recipe['name']} - "
-                    f"{cost_text} "
-                    f"(+{recipe.get('uses_per_craft', 1)} uses)"
-                )
+                    recipe_line = (
+                        f"{recipe_number}. {recipe['name']} - "
+                        f"{cost_text} "
+                        f"(+{recipe.get('uses_per_craft', 1)} uses)"
+                    )
                 recipe_text = self.menu_font.render(
                     recipe_line, True, (255, 145, 80)
                 )
                 screen.blit(recipe_text, (panel.x + 24, recipe_y))
                 recipe_y += 27
 
-        if self.level >= 2:
+        if self.arcana_magic_mastered:
+            instruction = "Book mastery active: Fire and Fly are unlimited."
+        elif self.level >= 2:
             instruction = "Press 1 or ENTER for Fire Magic."
         else:
             instruction = "Reach level 2 to unlock Fire Magic."
@@ -1199,12 +1234,21 @@ class Player:
             y += 23
 
         magic_names = list(dict.fromkeys(self.held_magic))
+        if self.arcana_magic_mastered:
+            magic_names = list(
+                dict.fromkeys(magic_names + ["Fire Magic", "Fly Magic"])
+            )
         if not magic_names:
             magic_names = ["None"]
 
         for magic_name in magic_names:
             if magic_name == "None":
                 magic_line = "- None"
+            elif self.arcana_magic_mastered and magic_name in (
+                "Fire Magic",
+                "Fly Magic",
+            ):
+                magic_line = f"- {magic_name} (UNLIMITED)"
             else:
                 copies = self.held_magic.count(magic_name)
                 uses = self.magic_uses.get(magic_name, 0)
