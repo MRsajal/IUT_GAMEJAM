@@ -3,6 +3,7 @@ from pathlib import Path
 import pygame
 
 from dialogue import DialogueBox, MapSelectionBox
+from music_manager import play_background_music
 from npc1 import HealingNPC
 from player import Player
 from portal import Portal
@@ -20,6 +21,7 @@ MAP2_RETURN_SPAWN = (MAP_WIDTH - 80, 180)
 NPC_CENTER_X = 480
 
 MAP_PATH = Path(__file__).parent / "maps2.png"
+MUSIC_PATH = Path(__file__).parent / "music.mp3"
 
 INTRO_DIALOGUE = [
     {
@@ -92,6 +94,7 @@ def map1(player=None, arrived_from=None):
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("Map 1")
     clock = pygame.time.Clock()
+    play_background_music(MUSIC_PATH)
 
     map_surface = load_map()
     platform_rects = create_platform_rects()

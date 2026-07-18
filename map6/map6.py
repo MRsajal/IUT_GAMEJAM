@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pygame
 
+from music_manager import play_background_music
 from npc3 import QuestNPC
 from player import Player
 from portal import Portal
@@ -19,9 +20,11 @@ MAP7_RETURN_SPAWN = (700, 100)
 PORTAL_X = 24
 NPC3_X = 770
 DOOR_X = 900
+DOOR_SIZE = (72, 101)
 GROUND_Y = 240
 MAP_PATH = Path(__file__).parent / "map6.png"
 DOOR_PATH = Path(__file__).parent / "door.jpg"
+MUSIC_PATH = Path(__file__).parent / "music.mp3"
 
 
 def load_map():
@@ -32,7 +35,8 @@ def load_map():
 
 
 def load_door():
-    return pygame.image.load(DOOR_PATH).convert()
+    image = pygame.image.load(DOOR_PATH).convert()
+    return pygame.transform.smoothscale(image, DOOR_SIZE)
 
 
 def door_is_open(player):
@@ -67,6 +71,7 @@ def map6(player=None, arrived_from=None):
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("Map 6 - The Grieving Husband")
     clock = pygame.time.Clock()
+    play_background_music(MUSIC_PATH)
     background = load_map()
     door_image = load_door()
     door_rect = door_image.get_rect(midbottom=(DOOR_X, GROUND_Y))

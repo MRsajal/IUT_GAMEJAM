@@ -3,6 +3,7 @@ import random
 
 import pygame
 
+from music_manager import play_background_music
 from player import Player
 from npc2 import MissionNPC
 from portal import Portal
@@ -25,6 +26,7 @@ WIND_CRYSTAL_DROP_CHANCE = 0.70
 BOSS_ZONE_WIDTH = 288
 
 MAP_PATH = Path(__file__).parent / "map3.png"
+MUSIC_PATH = Path(__file__).parent / "music.mp3"
 
 
 def load_map():
@@ -158,6 +160,7 @@ def map3(player=None, arrived_from=None):
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("Map 3")
     clock = pygame.time.Clock()
+    play_background_music(MUSIC_PATH)
 
     map_surface = load_map()
     platform_rects = create_platform_rects()

@@ -3,6 +3,7 @@ import random
 
 import pygame
 
+from music_manager import play_background_music
 from player import Player
 from portal import Portal
 from .entities import (
@@ -29,6 +30,7 @@ CHECKPOINT_SPAWNS = (
     (1680, GROUND_Y - 40),
 )
 MAP_PATH = Path(__file__).parent / "map5.png"
+MUSIC_PATH = Path(__file__).parent / "music.mp3"
 CYAN = (80, 230, 255)
 VIOLET = (190, 105, 255)
 
@@ -223,6 +225,7 @@ def map5(player=None, arrived_from=None):
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("Map 5 - Crystal Labyrinth")
     clock = pygame.time.Clock()
+    play_background_music(MUSIC_PATH)
     background = load_map()
     platforms = base_platforms()
 

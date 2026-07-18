@@ -8,9 +8,11 @@ import pygame
 
 from Dragon.dragon import DRAGON_MAX_HEALTH
 from map6.map6 import (
+    DOOR_SIZE,
     MAP_WIDTH as MAP6_WIDTH,
     NPC3_X,
     door_is_open,
+    load_door,
     stop_flight,
 )
 from npc3.npc import QuestWindow
@@ -126,6 +128,7 @@ class FlyMagicTests(unittest.TestCase):
         self.assertTrue(consumed)
         self.assertEqual(action, "book_delivered")
         self.assertTrue(door_is_open(player))
+        self.assertEqual(load_door().get_size(), DOOR_SIZE)
 
 
 if __name__ == "__main__":

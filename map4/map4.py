@@ -5,6 +5,7 @@ import pygame
 
 from crow import Crow
 from Dragon import DragonBoss
+from music_manager import play_background_music
 from player import Player
 from portal import Portal
 from .falling_stone import FallingStone, STONE_DAMAGE
@@ -22,6 +23,7 @@ ENTRANCE_PORTAL_X = 24
 OUTGOING_PORTAL_X = MAP_WIDTH - 24
 STONE_SPAWN_INTERVAL = 1.0
 MAP_PATH = Path(__file__).parent / "map4.png"
+MUSIC_PATH = Path(__file__).parent / "music.mp3"
 
 CROW_ZONES = [
     (100, 250, 90),
@@ -60,6 +62,7 @@ def map4(player=None, arrived_from=None):
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("Map 4 - Bottomless Flight")
     clock = pygame.time.Clock()
+    play_background_music(MUSIC_PATH)
     map_surface = load_map()
 
     spawn_position = (

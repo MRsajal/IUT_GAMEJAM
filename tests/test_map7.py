@@ -23,6 +23,7 @@ from map7.interactions import (
     create_interactables,
     light_candle,
 )
+from map7.platform import platform
 from player import Player
 
 
@@ -50,6 +51,10 @@ class Map7Tests(unittest.TestCase):
         platforms = create_platform_rects()
         self.assertTrue(platforms)
         self.assertTrue(any(rect.top == 288 for rect in platforms))
+        expected_count = sum(
+            tile != -1 for row in platform for tile in row
+        )
+        self.assertEqual(len(platforms), expected_count)
 
     def test_object_array_creates_all_six_interactions(self):
         interactables = create_interactables()

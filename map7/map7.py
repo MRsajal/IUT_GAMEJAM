@@ -1,11 +1,12 @@
 from pathlib import Path
-import csv
 
 import pygame
 
 from ghosts import Ghost, GhostWindow
+from music_manager import play_background_music
 from player import Player
 from portal import Portal
+from .platform import platform
 from .interactions import (
     InteractionWindow,
     create_interactables,
@@ -27,7 +28,7 @@ EXIT_PORTAL_X = MAP_WIDTH - 28
 EXIT_PORTAL_BOTTOM = 288
 PUZZLE_TIME_LIMIT = 90.0
 MAP_PATH = Path(__file__).parent / "map7.png"
-PLATFORM_PATH = Path(__file__).parent / "map7_Tile Layer 2.csv"
+MUSIC_PATH = Path(__file__).parent / "music.mp3"
 
 
 def load_map():
@@ -41,21 +42,18 @@ def load_map():
 
 
 def create_platform_rects():
-    """Use every foreground tile as a landing surface."""
-    platform_rects = []
-    with PLATFORM_PATH.open(newline="", encoding="utf-8") as csv_file:
-        for row_number, row in enumerate(csv.reader(csv_file)):
-            for column_number, tile_value in enumerate(row):
-                if int(tile_value) >= 0:
-                    platform_rects.append(
-                        pygame.Rect(
-                            column_number * TILE_SIZE,
-                            row_number * TILE_SIZE,
-                            TILE_SIZE,
-                            TILE_SIZE,
-                        )
-                    )
-    return platform_rects
+    """Treat every non--1 value in platform.py as solid terrain."""
+    return [
+        pygame.Rect(
+            column_number * TILE_SIZE,
+            row_number * TILE_SIZE,
+            TILE_SIZE,
+            TILE_SIZE,
+        )
+        for row_number, row in enumerate(platform)
+        for column_number, tile_value in enumerate(row)
+        if tile_value != -1
+    ]
 
 
 def reset_timed_puzzle(player):
@@ -92,6 +90,7 @@ def map7(player=None, arrived_from=None):
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("Map 7 - Image Test")
     clock = pygame.time.Clock()
+    play_background_music(MUSIC_PATH)
     background = load_map()
     platform_rects = create_platform_rects()
     interactables = create_interactables()

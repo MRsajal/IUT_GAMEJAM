@@ -3,6 +3,7 @@ import random
 
 import pygame
 
+from music_manager import play_background_music
 from player import Player
 from portal import Portal
 from slime import Emberstone, Slime
@@ -25,6 +26,7 @@ REQUIRED_EMBERSTONES = 2
 REQUIRED_LEVEL = 2
 
 MAP_PATH = Path(__file__).parent / "maps2.png"
+MUSIC_PATH = Path(__file__).parent / "music.mp3"
 
 
 def load_map():
@@ -70,6 +72,7 @@ def map2(player=None, arrived_from=None):
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("Map 2")
     clock = pygame.time.Clock()
+    play_background_music(MUSIC_PATH)
 
     map_surface = load_map()
     platform_rects = create_platform_rects()
