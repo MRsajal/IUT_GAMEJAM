@@ -2,6 +2,8 @@ from pathlib import Path
 
 import pygame
 
+from music_manager import play_sound_effect
+
 
 PLAYER_SPEED = 180
 GRAVITY = 1000
@@ -27,7 +29,6 @@ DEATH_POINT_PENALTY = 10
 ATTACK_RANGE = 20
 FIRE_RANGE = 100
 FIRE_DAMAGE = 25
-KICK_DAMAGE = 15
 KICK_RANGE = 28
 KICK_KNOCKBACK = 115
 KICK_DURATION = KICK_FRAME_COUNT / KICK_ANIMATION_SPEED
@@ -54,6 +55,7 @@ FIRE_PATH = Path(__file__).parent / "fire"
 DAMAGE_PATH = Path(__file__).parent / "damage"
 DEATH_PATH = Path(__file__).parent / "death"
 FLYING_PATH = Path(__file__).parent / "flying"
+FIRE_SOUND_PATH = Path(__file__).parent / "fire.mp3"
 
 SHIELD_HEALTH_CAPS = {
     1: 60,
@@ -336,6 +338,7 @@ class Player:
             self.fire_time_left = FIRE_DURATION
             self.fire_cooldown_left = FIRE_COOLDOWN
             self.fire_has_dealt_damage = False
+            play_sound_effect(FIRE_SOUND_PATH, volume=0.50)
             if not self.arcana_magic_mastered:
                 self._consume_magic_use("Fire Magic")
             return True
@@ -543,20 +546,22 @@ class Player:
         )
 
     def get_kick_rect(self):
-        """Return the short, forward-facing kick area."""
+        """Return the kick area, including enemies overlapping the player."""
+        top = self.rect.top + self.rect.height // 3
+        height = self.rect.height * 2 // 3
         if self.facing_right:
             return pygame.Rect(
-                self.rect.centerx,
-                self.rect.top + self.rect.height // 3,
-                KICK_RANGE,
-                self.rect.height * 2 // 3,
+                self.rect.left,
+                top,
+                self.rect.width + KICK_RANGE,
+                height,
             )
 
         return pygame.Rect(
-            self.rect.centerx - KICK_RANGE,
-            self.rect.top + self.rect.height // 3,
-            KICK_RANGE,
-            self.rect.height * 2 // 3,
+            self.rect.left - KICK_RANGE,
+            top,
+            self.rect.width + KICK_RANGE,
+            height,
         )
 
     @property
@@ -649,12 +654,13 @@ class Player:
         if not self.is_kicking:
             return
 
-        kick_elapsed = KICK_DURATION - self.kick_time_left
-        impact_time = 2 / KICK_ANIMATION_SPEED
+        remaining_time = self.kick_time_left - delta_time
+        animation_finished = remaining_time <= 0.000001
+        self.kick_time_left = 0 if animation_finished else remaining_time
 
         if (
             not self.kick_has_dealt_damage
-            and kick_elapsed >= impact_time
+            and animation_finished
         ):
             kick_rect = self.get_kick_rect()
             direction = 1 if self.facing_right else -1
@@ -667,14 +673,13 @@ class Player:
                     and callable(take_damage)
                     and kick_rect.colliderect(target_rect)
                 ):
-                    take_damage(KICK_DAMAGE)
+                    # A kick uses the same level-scaled damage as SPACE.
+                    take_damage(self.attack_damage)
                     apply_knockback = getattr(target, "apply_knockback", None)
                     if callable(apply_knockback):
                         apply_knockback(direction * KICK_KNOCKBACK)
 
             self.kick_has_dealt_damage = True
-
-        self.kick_time_left = max(0, self.kick_time_left - delta_time)
 
     def take_damage(self, amount):
         """Reduce player health without allowing it to go below zero."""
@@ -685,22 +690,27 @@ class Player:
         if damage == 0:
             return False
 
+        kick_was_active = self.is_kicking
         self.health = max(0, self.health - damage)
         self.attack_time_left = 0.0
         self.attack_has_dealt_damage = False
         self.fire_time_left = 0.0
         self.fire_has_dealt_damage = False
-        self.kick_time_left = 0.0
-        self.kick_has_dealt_damage = False
         self.combat_message = ""
         self.combat_message_time_left = 0.0
 
         if self.is_dead:
+            self.kick_time_left = 0.0
+            self.kick_has_dealt_damage = False
             self.damage_time_left = 0.0
             self.death_animation_time = 0.0
             self.death_animation_finished = False
             self.active_screen = None
         else:
+            # Contact damage must not cancel a kick before its final-frame hit.
+            if not kick_was_active:
+                self.kick_time_left = 0.0
+                self.kick_has_dealt_damage = False
             self.damage_time_left = DAMAGE_DURATION
 
         return True
@@ -906,11 +916,12 @@ class Player:
 
             self.animation_time += delta_time
             self._update_fire_attack(delta_time, damage_targets)
+            self._update_kick(delta_time, damage_targets)
             if self.is_taking_damage:
                 self.damage_time_left = max(
                     0, self.damage_time_left - delta_time
                 )
-            elif not self.is_casting_fire:
+            elif not self.is_casting_fire and not self.is_kicking:
                 self._update_attack(delta_time, damage_targets)
             return
 
@@ -964,6 +975,15 @@ class Player:
                 int(self.death_animation_time * DEATH_ANIMATION_SPEED),
                 len(frames) - 1,
             )
+        elif self.is_kicking:
+            frames = (
+                self.kick_right if self.facing_right else self.kick_left
+            )
+            kick_elapsed = KICK_DURATION - self.kick_time_left
+            frame_index = min(
+                int(kick_elapsed * KICK_ANIMATION_SPEED),
+                len(frames) - 1,
+            )
         elif self.is_taking_damage:
             frames = (
                 self.damage_right
@@ -983,15 +1003,6 @@ class Player:
             fire_elapsed = FIRE_DURATION - self.fire_time_left
             frame_index = min(
                 int(fire_elapsed * FIRE_ANIMATION_SPEED),
-                len(frames) - 1,
-            )
-        elif self.is_kicking:
-            frames = (
-                self.kick_right if self.facing_right else self.kick_left
-            )
-            kick_elapsed = KICK_DURATION - self.kick_time_left
-            frame_index = min(
-                int(kick_elapsed * KICK_ANIMATION_SPEED),
                 len(frames) - 1,
             )
         elif self.is_attacking:

@@ -10,6 +10,16 @@ from map8.map8 import create_platform_rects, load_map
 from map8.platform import platform
 from Orge.ogre import OGRE_MAX_HEALTH, OgreBoss
 from player import Player
+from player.player import KICK_DURATION
+
+
+class DamageTarget:
+    def __init__(self, rect):
+        self.rect = rect
+        self.damage_taken = 0
+
+    def take_damage(self, amount):
+        self.damage_taken += amount
 
 
 class Map8Tests(unittest.TestCase):
@@ -50,6 +60,37 @@ class Map8Tests(unittest.TestCase):
         ogre.update(0.01, player)
 
         self.assertLess(player.health, player.max_health)
+
+    def test_kick_deals_same_level_scaled_damage_as_space_attack(self):
+        player = Player(100, 200)
+        player.attack_damage = 35
+        target = DamageTarget(player.get_kick_rect())
+        kick = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_k)
+
+        self.assertTrue(player.handle_event(kick))
+        player._update_kick(KICK_DURATION - 0.01, [target])
+        self.assertEqual(target.damage_taken, 0)
+
+        player._update_kick(0.01, [target])
+
+        self.assertEqual(target.damage_taken, player.attack_damage)
+
+    def test_map2_style_contact_damage_does_not_cancel_kick(self):
+        player = Player(100, 200)
+        # Overlap the player's rear half, as a chasing slime can in Map 2.
+        target = DamageTarget(
+            pygame.Rect(player.rect.left - 4, player.rect.bottom - 16, 18, 16)
+        )
+        kick = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_k)
+
+        self.assertTrue(player.handle_event(kick))
+        self.assertTrue(player.take_damage(10))
+        self.assertTrue(player.is_kicking)
+
+        player._update_kick(KICK_DURATION, [target])
+
+        self.assertEqual(target.damage_taken, player.attack_damage)
+        self.assertFalse(player.is_kicking)
 
 
 if __name__ == "__main__":

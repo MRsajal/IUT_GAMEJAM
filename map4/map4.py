@@ -166,7 +166,11 @@ def map4(player=None, arrived_from=None):
 
         # Match Map 3: keep a defeated enemy visible until the player's
         # attack animation has finished.
-        if not player.is_attacking and not player.is_casting_fire:
+        if (
+            not player.is_attacking
+            and not player.is_casting_fire
+            and not player.is_kicking
+        ):
             defeated_crows = [crow for crow in crows if not crow.alive]
             potions.extend(
                 HealthPotion(crow.rect.centerx, crow.rect.centery)

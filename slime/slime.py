@@ -2,6 +2,8 @@ from pathlib import Path
 
 import pygame
 
+from music_manager import play_sound_effect
+
 
 SLIME_FRAME_COUNT = 7
 SLIME_ANIMATION_SPEED = 8
@@ -13,6 +15,7 @@ SLIME_KNOCKBACK_DECELERATION = 900
 KNOCKBACK_AIR_TIME = 0.45
 KNOCKBACK_ARC_HEIGHT = 22
 SLIME_PATH = Path(__file__).parent
+SLIME_DEATH_SOUND_PATH = SLIME_PATH / "death.mp3"
 
 
 class Slime:
@@ -56,7 +59,14 @@ class Slime:
         return self.health > 0
 
     def take_damage(self, amount):
+        was_alive = self.alive
         self.health = max(0, self.health - max(0, amount))
+        if was_alive and not self.alive:
+            play_sound_effect(
+                SLIME_DEATH_SOUND_PATH,
+                volume=0.45,
+                max_duration_ms=1000,
+            )
 
     def apply_knockback(self, distance):
         """Launch the slime horizontally instead of teleporting it."""

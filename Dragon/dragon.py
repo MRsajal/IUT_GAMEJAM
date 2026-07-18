@@ -2,6 +2,8 @@ from pathlib import Path
 
 import pygame
 
+from music_manager import play_sound_effect
+
 
 DRAGON_MAX_HEALTH = 200
 DRAGON_ATTACK_DAMAGE = 40
@@ -17,6 +19,7 @@ DRAGON_ATTACK_DURATION = (
 DRAGON_IDLE_SIZE = (154, 106)
 DRAGON_ATTACK_SIZE = (187, 132)
 DRAGON_PATH = Path(__file__).parent
+DRAGON_DEATH_SOUND_PATH = DRAGON_PATH / "death.mp3"
 
 
 class DragonBoss:
@@ -79,7 +82,14 @@ class DragonBoss:
         return self.health > 0
 
     def take_damage(self, amount):
+        was_alive = self.alive
         self.health = max(0, self.health - max(0, amount))
+        if was_alive and not self.alive:
+            play_sound_effect(
+                DRAGON_DEATH_SOUND_PATH,
+                volume=0.75,
+                max_duration_ms=1000,
+            )
 
     def _distance_to_player(self, player):
         return pygame.Vector2(player.rect.center).distance_to(

@@ -2,6 +2,8 @@ from pathlib import Path
 
 import pygame
 
+from music_manager import play_sound_effect
+
 
 OGRE_MAX_HEALTH = 200
 OGRE_ATTACK_DAMAGE = (30, 42, 55)
@@ -19,6 +21,7 @@ OGRE_ATTACK_DURATION = (
     OGRE_FRAME_COUNTS["attack"] / OGRE_ANIMATION_SPEED["attack"]
 )
 OGRE_PATH = Path(__file__).parent
+OGRE_LAUGH_SOUND_PATH = OGRE_PATH / "Orge laugh.mp3"
 
 
 class OgreBoss:
@@ -41,6 +44,7 @@ class OgreBoss:
         self.attack_time_left = 0.0
         self.attack_cooldown_left = 0.0
         self.attack_has_dealt_damage = False
+        play_sound_effect(OGRE_LAUGH_SOUND_PATH, volume=0.75)
 
     @classmethod
     def _load_animations(cls):
