@@ -1,12 +1,87 @@
 """Opening cinematic playback for the game."""
 
+import os
 from pathlib import Path
+import subprocess
+import tempfile
 
 import pygame
 
 
 VIDEO_PATH = Path(__file__).parent / "openingvid" / "opening_vid.mp4"
 SLIME_VIDEO_PATH = Path(__file__).parent / "openingvid" / "slime_map.mp4"
+TOAD_VIDEO_PATH = Path(__file__).parent / "openingvid" / "toad_map.mp4"
+FLYING_VIDEO_PATH = Path(__file__).parent / "openingvid" / "flying_map.mp4"
+
+
+def _extract_video_audio(video_path):
+    """Extract an MP4 audio track to a temporary WAV file."""
+    try:
+        import imageio_ffmpeg
+    except ImportError:
+        print(
+            "Video audio skipped: install dependencies with "
+            "'python -m pip install -r requirements.txt'."
+        )
+        return None
+
+    temporary_audio = tempfile.NamedTemporaryFile(
+        suffix=".wav", delete=False
+    )
+    audio_path = Path(temporary_audio.name)
+    temporary_audio.close()
+
+    command = [
+        imageio_ffmpeg.get_ffmpeg_exe(),
+        "-loglevel",
+        "error",
+        "-y",
+        "-i",
+        str(video_path),
+        "-vn",
+        "-acodec",
+        "pcm_s16le",
+        str(audio_path),
+    ]
+    startupinfo = None
+    if os.name == "nt":
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+
+    result = subprocess.run(
+        command,
+        capture_output=True,
+        startupinfo=startupinfo,
+        check=False,
+    )
+    if result.returncode != 0 or audio_path.stat().st_size == 0:
+        audio_path.unlink(missing_ok=True)
+        return None
+    return audio_path
+
+
+def _start_video_audio(video_path):
+    """Start a video's audio and return its temporary file, if present."""
+    audio_path = _extract_video_audio(video_path)
+    if audio_path is None:
+        return None
+    try:
+        pygame.mixer.music.load(audio_path)
+        pygame.mixer.music.play()
+    except pygame.error as error:
+        print(f"Video audio skipped: {error}")
+        audio_path.unlink(missing_ok=True)
+        return None
+    return audio_path
+
+
+def _stop_video_audio(audio_path):
+    if audio_path is None:
+        return
+    pygame.mixer.music.stop()
+    if hasattr(pygame.mixer.music, "unload"):
+        pygame.mixer.music.unload()
+    audio_path.unlink(missing_ok=True)
 
 
 def play_video(video_path, screen_size=(600, 320)):
@@ -32,6 +107,7 @@ def play_video(video_path, screen_size=(600, 320)):
     fps = video.get(cv2.CAP_PROP_FPS)
     if not fps or fps <= 0:
         fps = 30
+    audio_path = _start_video_audio(video_path)
 
     keep_playing = True
     continue_game = True
@@ -91,6 +167,7 @@ def play_video(video_path, screen_size=(600, 320)):
         clock.tick(round(fps))
 
     video.release()
+    _stop_video_audio(audio_path)
     return continue_game
 
 
