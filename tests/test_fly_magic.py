@@ -131,6 +131,20 @@ class FlyMagicTests(unittest.TestCase):
         self.assertTrue(player.arcana_magic_mastered)
         self.assertEqual(load_door().get_size(), DOOR_SIZE)
 
+    def test_accepting_npc3_request_completes_map6_and_unlocks_map7(self):
+        player = Player(80, 100)
+        window = QuestWindow(player)
+        accept = pygame.event.Event(
+            pygame.KEYDOWN, key=pygame.K_RETURN
+        )
+
+        consumed, action = window.handle_event(accept)
+
+        self.assertTrue(consumed)
+        self.assertEqual(action, "travel_map7")
+        self.assertTrue(player.map6_cleared)
+        self.assertTrue(player.map7_quest_accepted)
+
     def test_book_mastery_makes_fire_and_fly_unlimited(self):
         player = Player(80, 100)
         player.arcana_magic_mastered = True

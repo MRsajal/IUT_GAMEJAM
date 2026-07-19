@@ -9,7 +9,7 @@ OGRE_MAX_HEALTH = 200
 OGRE_ATTACK_DAMAGE = (30, 42, 55)
 OGRE_SPEED = (62, 88, 112)
 OGRE_ATTACK_RANGE = (72, 92, 112)
-OGRE_ATTACK_COOLDOWN = (1.05, 0.78, 0.58)
+OGRE_ATTACK_COOLDOWN = 20.0
 OGRE_ANIMATION_SPEED = {
     "idle": 6,
     "walk": 9,
@@ -92,7 +92,6 @@ class OgreBoss:
         self.state = "attack"
         self.animation_time = 0.0
         self.attack_time_left = OGRE_ATTACK_DURATION
-        self.attack_cooldown_left = OGRE_ATTACK_COOLDOWN[self.rage_stage]
         self.attack_has_dealt_damage = False
 
     def _attack_rect(self):
@@ -108,6 +107,8 @@ class OgreBoss:
         self.attack_cooldown_left = max(
             0.0, self.attack_cooldown_left - delta_time
         )
+        if self.attack_cooldown_left <= 0.000001:
+            self.attack_cooldown_left = 0.0
         offset_x = player.rect.centerx - self.rect.centerx
         self.facing_right = offset_x > 0
 
@@ -121,6 +122,9 @@ class OgreBoss:
                     player.take_damage(OGRE_ATTACK_DAMAGE[self.rage_stage])
                 self.attack_has_dealt_damage = True
             self.attack_time_left = max(0.0, self.attack_time_left - delta_time)
+            if self.attack_time_left <= 0:
+                # Start the full cooldown only after the swing finishes.
+                self.attack_cooldown_left = OGRE_ATTACK_COOLDOWN
             return
 
         self.animation_time += delta_time

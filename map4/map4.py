@@ -8,6 +8,7 @@ from Dragon import DragonBoss
 from music_manager import play_background_music
 from player import Player
 from portal import Portal
+from start_menu import open_in_game_menu
 from .falling_stone import FallingStone, STONE_DAMAGE
 from .potion import HealthPotion
 
@@ -120,7 +121,8 @@ def map4(player=None, arrived_from=None):
                     and event.type == pygame.KEYDOWN
                     and event.key == pygame.K_ESCAPE
                 ):
-                    running = False
+                    if not open_in_game_menu(clock):
+                        running = False
 
         game_ui_open = player.ui_open
         if not game_ui_open:

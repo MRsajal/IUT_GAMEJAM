@@ -166,6 +166,7 @@ class Player:
         self.intro_dialogue_seen = False
         self.slime_video_seen = False
         self.map4_cleared = False
+        self.map6_cleared = False
         self.map7_painting_angle = 0
         self.map7_painting_solved = False
         self.map7_clock_hour = 12

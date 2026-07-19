@@ -6,6 +6,7 @@ from ghosts import Ghost, GhostWindow
 from music_manager import play_background_music
 from player import Player
 from portal import Portal
+from start_menu import open_in_game_menu
 from .platform import platform
 from .interactions import (
     InteractionWindow,
@@ -29,6 +30,11 @@ EXIT_PORTAL_BOTTOM = 288
 PUZZLE_TIME_LIMIT = 90.0
 MAP_PATH = Path(__file__).parent / "map7.png"
 MUSIC_PATH = Path(__file__).parent / "music.mp3"
+LADDER_PATH = Path(__file__).parent / "ladder.png"
+LADDER_RECT = pygame.Rect(388, 128, 28, 160)
+LADDER_UPPER_FLOOR_Y = 128
+LADDER_LOWER_FLOOR_Y = 288
+LADDER_CLIMB_SPEED = 120
 
 
 def load_map():
@@ -54,6 +60,40 @@ def create_platform_rects():
         for column_number, tile_value in enumerate(row)
         if tile_value != -1
     ]
+
+
+def move_player_on_ladder(player, direction, delta_time):
+    """Move the player between Map 7's lower and upper floors."""
+    ladder_area = LADDER_RECT.inflate(18, 8)
+    if direction == 0 or not player.rect.colliderect(ladder_area):
+        return False
+
+    player.position.x = LADDER_RECT.centerx - player.rect.width / 2
+    player.position.y += direction * LADDER_CLIMB_SPEED * delta_time
+    upper_y = LADDER_UPPER_FLOOR_Y - player.rect.height
+    lower_y = LADDER_LOWER_FLOOR_Y - player.rect.height
+    player.position.y = max(upper_y, min(lower_y, player.position.y))
+    player.rect.topleft = (
+        round(player.position.x),
+        round(player.position.y),
+    )
+    player.velocity_y = 0.0
+    player.on_ground = player.position.y in (upper_y, lower_y)
+    player.animation_time += delta_time
+    return True
+
+
+def load_ladder():
+    image = pygame.image.load(LADDER_PATH).convert_alpha()
+    if image.get_size() != LADDER_RECT.size:
+        image = pygame.transform.smoothscale(image, LADDER_RECT.size)
+    return image
+
+
+def draw_ladder(screen, camera_x, ladder_image):
+    """Draw the ladder sprite beside the grandfather clock."""
+    draw_rect = LADDER_RECT.move(-round(camera_x), 0)
+    screen.blit(ladder_image, draw_rect)
 
 
 def reset_timed_puzzle(player):
@@ -92,6 +132,7 @@ def map7(player=None, arrived_from=None):
     clock = pygame.time.Clock()
     play_background_music(MUSIC_PATH)
     background = load_map()
+    ladder_image = load_ladder()
     platform_rects = create_platform_rects()
     interactables = create_interactables()
     prompt_font = pygame.font.Font(None, 18)
@@ -157,18 +198,25 @@ def map7(player=None, arrived_from=None):
                 and event.type == pygame.KEYDOWN
                 and event.key == pygame.K_ESCAPE
             ):
-                next_map = "map6" if arrived_from == "map6" else "map1"
-                next_arrival_from = "map7"
-                running = False
+                if not open_in_game_menu(clock):
+                    running = False
 
         modal_open = interaction_window is not None or ghost_window is not None
         if not player.ui_open and not modal_open:
-            player.update(
-                delta_time,
-                platform_rects,
-                MAP_WIDTH,
-                map_height=MAP_HEIGHT,
+            keys = pygame.key.get_pressed()
+            ladder_direction = int(
+                keys[pygame.K_s] or keys[pygame.K_DOWN]
+            ) - int(keys[pygame.K_w] or keys[pygame.K_UP])
+            climbing = move_player_on_ladder(
+                player, ladder_direction, delta_time
             )
+            if not climbing:
+                player.update(
+                    delta_time,
+                    platform_rects,
+                    MAP_WIDTH,
+                    map_height=MAP_HEIGHT,
+                )
 
         timed_challenge_active = (
             player.map7_quest_accepted
@@ -237,6 +285,7 @@ def map7(player=None, arrived_from=None):
             round(camera_x), 0, SCREEN_WIDTH, SCREEN_HEIGHT
         )
         screen.blit(background, (0, 0), camera_area)
+        draw_ladder(screen, camera_x, ladder_image)
         draw_lit_candles(screen, camera_x, interactables, player)
         if player.map7_has_book:
             exit_portal.draw(screen, camera_x)
@@ -247,6 +296,27 @@ def map7(player=None, arrived_from=None):
             draw_interaction_prompt(
                 screen, camera_x, nearby, prompt_font
             )
+        if (
+            LADDER_RECT.inflate(32, 12).colliderect(player.rect)
+            and interaction_window is None
+            and ghost_window is None
+        ):
+            ladder_hint = prompt_font.render(
+                "W/S: Climb ladder", True, (255, 238, 155)
+            )
+            hint_rect = ladder_hint.get_rect(
+                midbottom=(
+                    LADDER_RECT.centerx - round(camera_x),
+                    LADDER_RECT.top - 4,
+                )
+            )
+            pygame.draw.rect(
+                screen,
+                (25, 28, 40),
+                hint_rect.inflate(10, 6),
+                border_radius=5,
+            )
+            screen.blit(ladder_hint, hint_rect)
         player.draw(screen, camera_x)
         player.draw_health_bar(screen)
         if timed_challenge_active:

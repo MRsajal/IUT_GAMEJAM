@@ -57,6 +57,7 @@ class QuestWindow:
                 pygame.K_RETURN,
                 pygame.K_KP_ENTER,
             ):
+                self.player.map6_cleared = True
                 self.player.map7_quest_accepted = True
                 self.closed = True
                 return True, "travel_map7"
@@ -70,6 +71,7 @@ class QuestWindow:
             pygame.K_RETURN,
             pygame.K_KP_ENTER,
         ):
+            self.player.map6_cleared = True
             self.closed = True
             return True, "travel_map7"
 

@@ -2,8 +2,10 @@ from pathlib import Path
 
 import pygame
 
+from music_manager import play_background_music
 from Orge import OgreBoss
 from player import Player
+from start_menu import open_in_game_menu
 from .platform import platform
 
 
@@ -16,6 +18,7 @@ PLAYER_SPAWN = (70, 100)
 OGRE_SPAWN_X = 790
 OGRE_TRIGGER_X = 250
 MAP_PATH = Path(__file__).parent / "map8.png"
+MUSIC_PATH = Path(__file__).parent / "music.mp3"
 
 
 def load_map():
@@ -44,6 +47,7 @@ def map8(player=None, arrived_from=None):
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("Map 8 - Final Battle")
     clock = pygame.time.Clock()
+    play_background_music(MUSIC_PATH)
     background = load_map()
     platform_rects = create_platform_rects()
     ground_y = min(
@@ -86,7 +90,8 @@ def map8(player=None, arrived_from=None):
                 and event.type == pygame.KEYDOWN
                 and event.key == pygame.K_ESCAPE
             ):
-                running = False
+                if not open_in_game_menu(clock):
+                    running = False
 
         if not player.ui_open:
             targets = [ogre] if ogre is not None else []

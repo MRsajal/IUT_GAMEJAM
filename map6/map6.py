@@ -6,6 +6,7 @@ from music_manager import play_background_music
 from npc3 import QuestNPC
 from player import Player
 from portal import Portal
+from start_menu import open_in_game_menu
 from .platform import platform
 
 
@@ -144,7 +145,8 @@ def map6(player=None, arrived_from=None):
                 and event.type == pygame.KEYDOWN
                 and event.key == pygame.K_ESCAPE
             ):
-                running = False
+                if not open_in_game_menu(clock):
+                    running = False
 
         ui_open = player.ui_open or quest_npc.active
         if not ui_open:

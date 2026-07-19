@@ -7,6 +7,7 @@ from music_manager import play_background_music
 from player import Player
 from npc2 import MissionNPC
 from portal import Portal
+from start_menu import open_in_game_menu
 from toads import Toad
 from .object import object as object_layer
 from .platform import platform
@@ -24,9 +25,42 @@ PLAYER_SPAWN = (80, 100)
 MAP4_RETURN_SPAWN = (1040, 100)
 WIND_CRYSTAL_DROP_CHANCE = 0.70
 BOSS_ZONE_WIDTH = 288
+PLAYER_LIGHT_RADIUS = 165
 
 MAP_PATH = Path(__file__).parent / "map3.png"
 MUSIC_PATH = Path(__file__).parent / "music.mp3"
+
+
+def create_night_overlay(light_center):
+    """Create a dark blue night layer with soft light around the player."""
+    overlay = pygame.Surface(
+        (SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA
+    )
+    overlay.fill((4, 8, 24, 242))
+    rings = (
+        (PLAYER_LIGHT_RADIUS, 205),
+        (145, 170),
+        (125, 125),
+        (105, 80),
+        (85, 38),
+        (62, 0),
+    )
+    for radius, alpha in rings:
+        pygame.draw.circle(
+            overlay,
+            (7, 14, 32, alpha),
+            light_center,
+            radius,
+        )
+    return overlay
+
+
+def draw_night_lighting(screen, player, camera_x):
+    light_center = (
+        player.rect.centerx - round(camera_x),
+        player.rect.centery,
+    )
+    screen.blit(create_night_overlay(light_center), (0, 0))
 
 
 def load_map():
@@ -247,7 +281,8 @@ def map3(player=None, arrived_from=None):
                     and event.type == pygame.KEYDOWN
                     and event.key == pygame.K_ESCAPE
                 ):
-                    running = False
+                    if not open_in_game_menu(clock):
+                        running = False
 
         game_ui_open = player.ui_open or mission_npc.active
         if not game_ui_open:
@@ -344,6 +379,8 @@ def map3(player=None, arrived_from=None):
             toad.draw(screen, camera_x)
         if boss_defeated and not mission_npc.active:
             mission_npc.draw(screen, camera_x, player)
+        # Toads and scenery outside the player's light are hidden in night.
+        draw_night_lighting(screen, player, camera_x)
         player.draw(screen, camera_x)
         player.draw_health_bar(screen)
         player.draw_active_screen(screen)

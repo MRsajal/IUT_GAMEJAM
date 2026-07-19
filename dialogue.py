@@ -157,6 +157,7 @@ class MapSelectionBox:
         map2_cleared=False,
         map3_cleared=False,
         map4_cleared=False,
+        map6_cleared=False,
         map7_cleared=False,
     ):
         self.options = [
@@ -187,19 +188,27 @@ class MapSelectionBox:
                 ),
             },
             {
-                "name": "Map 7",
-                "map": "map7",
-                "locked": False,
-                "status": "IMAGE TEST OPEN",
+                "name": "Grieving Hollow",
+                "map": "map6",
+                "locked": not map4_cleared,
+                "status": (
+                    "CLEARED: MANOR QUEST UNLOCKED"
+                    if map6_cleared
+                    else "NPC3'S REQUEST"
+                    if map4_cleared
+                    else "LOCKED: Defeat the Dragon"
+                ),
             },
             {
-                "name": "Arcana Gate",
-                "map": "map6",
-                "locked": not map7_cleared,
+                "name": "Haunted Manor",
+                "map": "map7",
+                "locked": not map6_cleared,
                 "status": (
-                    "OPEN: NPC3 AND FINAL DOOR"
+                    "CLEARED: BOOK RECOVERED"
                     if map7_cleared
-                    else "LOCKED: Complete Map 7"
+                    else "BOOK OF ARCANA QUEST"
+                    if map6_cleared
+                    else "LOCKED: Complete Map 6"
                 ),
             },
         ]

@@ -7,6 +7,7 @@ from music_manager import play_background_music
 from npc1 import HealingNPC
 from player import Player
 from portal import Portal
+from start_menu import open_in_game_menu
 from .platform import platform
 
 
@@ -179,8 +180,6 @@ def map1(player=None, arrived_from=None):
                         else:
                             portal_ready = False
                         map_selection = None
-                elif healing_npc.active:
-                    event_consumed = healing_npc.handle_event(event, player)
                 elif (
                     event.type == pygame.KEYDOWN
                     and event.key == pygame.K_e
@@ -195,13 +194,13 @@ def map1(player=None, arrived_from=None):
                     and event.type == pygame.KEYDOWN
                     and event.key == pygame.K_ESCAPE
                 ):
-                    running = False
+                    if not open_in_game_menu(clock):
+                        running = False
 
         dialogue_open = (
             intro_dialogue is not None and not intro_dialogue.finished
         )
         map_selection_open = map_selection is not None
-        keeper_store_open = healing_npc.active
         if intro_dialogue is not None:
             intro_dialogue.update(delta_time)
             if intro_dialogue.finished:
@@ -211,7 +210,6 @@ def map1(player=None, arrived_from=None):
             not player.ui_open
             and not dialogue_open
             and not map_selection_open
-            and not keeper_store_open
         ):
             player.update(
                 delta_time, platform_rects, MAP_WIDTH, damage_targets
@@ -230,16 +228,16 @@ def map1(player=None, arrived_from=None):
             and not player.is_dead
             and not player.ui_open
             and not dialogue_open
-            and not keeper_store_open
             and map_selection is None
             and portal_ready
             and player.rect.colliderect(exit_portal.rect)
         ):
             map_selection = MapSelectionBox(
-                player.map2_cleared,
-                player.map3_cleared,
-                player.map4_cleared,
-                player.map7_mission_complete,
+                map2_cleared=player.map2_cleared,
+                map3_cleared=player.map3_cleared,
+                map4_cleared=player.map4_cleared,
+                map6_cleared=player.map6_cleared,
+                map7_cleared=player.map7_mission_complete,
             )
 
         if not player.rect.colliderect(exit_portal.rect):
@@ -260,7 +258,6 @@ def map1(player=None, arrived_from=None):
         player.draw(screen, camera_x)
         player.draw_health_bar(screen)
         player.draw_active_screen(screen)
-        healing_npc.draw_store(screen, player)
         if intro_dialogue is not None:
             intro_dialogue.draw(screen)
         if map_selection is not None:

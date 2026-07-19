@@ -1,6 +1,7 @@
 import os
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 
@@ -9,11 +10,16 @@ import pygame
 from dialogue import MapSelectionBox
 from ghosts.ghost import INTRO_PAGES
 from map7.map7 import (
+    LADDER_LOWER_FLOOR_Y,
+    LADDER_RECT,
+    LADDER_UPPER_FLOOR_Y,
     PLAYER_SPAWN,
     PUZZLE_TIME_LIMIT,
     create_platform_rects,
+    load_ladder,
     load_map,
     map7,
+    move_player_on_ladder,
     reset_timed_puzzle,
 )
 from map7.interactions import (
@@ -38,27 +44,40 @@ class Map7Tests(unittest.TestCase):
     def tearDownClass(cls):
         pygame.quit()
 
-    def test_map7_is_an_open_map1_destination(self):
-        selection = MapSelectionBox()
-        option = next(
-            item for item in selection.options if item["map"] == "map7"
+    def test_map7_is_locked_until_map6_is_complete(self):
+        locked = MapSelectionBox(map4_cleared=True)
+        locked_option = next(
+            item for item in locked.options if item["map"] == "map7"
         )
-        self.assertFalse(option["locked"])
+        self.assertTrue(locked_option["locked"])
+        self.assertEqual(locked_option["name"], "Haunted Manor")
+        self.assertEqual(locked_option["status"], "LOCKED: Complete Map 6")
 
-    def test_map6_portal_unlocks_only_after_map7_completion(self):
-        locked = MapSelectionBox()
+        unlocked = MapSelectionBox(
+            map4_cleared=True,
+            map6_cleared=True,
+        )
+        unlocked_option = next(
+            item for item in unlocked.options if item["map"] == "map7"
+        )
+        self.assertFalse(unlocked_option["locked"])
+        self.assertEqual(
+            unlocked_option["status"], "BOOK OF ARCANA QUEST"
+        )
+
+    def test_map6_unlocks_after_map4(self):
+        locked = MapSelectionBox(map3_cleared=True)
         locked_option = next(
             item for item in locked.options if item["map"] == "map6"
         )
         self.assertTrue(locked_option["locked"])
 
-        unlocked = MapSelectionBox(
-            map7_cleared=True
-        )
+        unlocked = MapSelectionBox(map4_cleared=True)
         unlocked_option = next(
             item for item in unlocked.options if item["map"] == "map6"
         )
         self.assertFalse(unlocked_option["locked"])
+        self.assertEqual(unlocked_option["name"], "Grieving Hollow")
 
     def test_map7_spawn_is_next_to_the_riddle_note(self):
         note = next(
@@ -79,6 +98,53 @@ class Map7Tests(unittest.TestCase):
             tile != -1 for row in platform for tile in row
         )
         self.assertEqual(len(platforms), expected_count)
+
+    def test_ladder_right_of_red_candle_connects_both_floors(self):
+        red_candle = next(
+            item for item in create_interactables()
+            if item.object_type == 2
+        )
+        self.assertGreaterEqual(LADDER_RECT.left, red_candle.rect.right)
+        self.assertLess(LADDER_RECT.left - red_candle.rect.right, 48)
+        self.assertLessEqual(LADDER_RECT.top, LADDER_UPPER_FLOOR_Y)
+        self.assertEqual(LADDER_RECT.bottom, LADDER_LOWER_FLOOR_Y)
+        self.assertEqual(load_ladder().get_size(), LADDER_RECT.size)
+        upper_platforms = [
+            rect
+            for rect in create_platform_rects()
+            if rect.top == LADDER_UPPER_FLOOR_Y
+        ]
+        player_at_top = pygame.Rect(
+            LADDER_RECT.centerx - 12,
+            LADDER_UPPER_FLOOR_Y - 40,
+            24,
+            40,
+        )
+        self.assertTrue(
+            any(
+                player_at_top.right > rect.left
+                and player_at_top.left < rect.right
+                for rect in upper_platforms
+            )
+        )
+
+    def test_player_can_climb_map7_ladder(self):
+        player = Player(
+            LADDER_RECT.centerx - 12,
+            LADDER_LOWER_FLOOR_Y - 40,
+        )
+        starting_y = player.position.y
+
+        self.assertTrue(move_player_on_ladder(player, -1, 0.25))
+        self.assertLess(player.position.y, starting_y)
+
+        for _ in range(120):
+            move_player_on_ladder(player, -1, 1 / 60)
+        self.assertEqual(player.rect.bottom, LADDER_UPPER_FLOOR_Y)
+
+        for _ in range(120):
+            move_player_on_ladder(player, 1, 1 / 60)
+        self.assertEqual(player.rect.bottom, LADDER_LOWER_FLOOR_Y)
 
     def test_object_array_creates_all_six_interactions(self):
         interactables = create_interactables()
@@ -194,22 +260,29 @@ class Map7Tests(unittest.TestCase):
             pygame.event.Event(pygame.KEYDOWN, key=pygame.K_ESCAPE)
         )
 
-        next_map, returned_player, arrived_from = map7(player, "map1")
+        with patch(
+            "map7.map7.open_in_game_menu", return_value=False
+        ):
+            next_map, returned_player, arrived_from = map7(player, "map1")
         self.assertTrue(player.map7_ghost_intro_seen)
-        self.assertEqual(next_map, "map1")
+        self.assertIsNone(next_map)
         self.assertIs(returned_player, player)
-        self.assertEqual(arrived_from, "map7")
+        self.assertIsNone(arrived_from)
 
-    def test_escape_returns_to_map1_and_preserves_player(self):
+    def test_escape_opens_menu_and_preserves_player(self):
         player = Player(0, 0)
         player.map7_ghost_intro_seen = True
         pygame.event.post(
             pygame.event.Event(pygame.KEYDOWN, key=pygame.K_ESCAPE)
         )
-        next_map, returned_player, arrived_from = map7(player, "map1")
-        self.assertEqual(next_map, "map1")
+        with patch(
+            "map7.map7.open_in_game_menu", return_value=False
+        ) as pause_menu:
+            next_map, returned_player, arrived_from = map7(player, "map1")
+        pause_menu.assert_called_once()
+        self.assertIsNone(next_map)
         self.assertIs(returned_player, player)
-        self.assertEqual(arrived_from, "map7")
+        self.assertIsNone(arrived_from)
 
     def test_map7_book_exit_returns_to_map6(self):
         source = Path(__file__).parents[1] / "map7" / "map7.py"

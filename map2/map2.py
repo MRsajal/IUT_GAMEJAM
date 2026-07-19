@@ -7,6 +7,7 @@ from music_manager import play_background_music
 from player import Player
 from portal import Portal
 from slime import Emberstone, Slime
+from start_menu import open_in_game_menu
 from .platform import platform
 
 
@@ -132,7 +133,8 @@ def map2(player=None, arrived_from=None):
                     and event.type == pygame.KEYDOWN
                     and event.key == pygame.K_ESCAPE
                 ):
-                    running = False
+                    if not open_in_game_menu(clock):
+                        running = False
 
         if not player.ui_open:
             player.update(delta_time, platform_rects, MAP_WIDTH, slimes)

@@ -125,7 +125,7 @@ def _draw_options(screen, fonts):
     screen.blit(hint, hint.get_rect(midtop=(300, 214)))
 
 
-def show_start_menu():
+def show_start_menu(escape_returns=False):
     """Return True for Start Game and False for Exit/window close."""
     screen = pygame.display.set_mode(SCREEN_SIZE)
     pygame.display.set_caption("Arcane Kickoff")
@@ -177,7 +177,7 @@ def show_start_menu():
                             return False
                         active_screen = choice.split()[0].lower()
                     elif event.key == pygame.K_ESCAPE:
-                        return False
+                        return escape_returns
             elif event.type == pygame.KEYDOWN:
                 if event.key in (pygame.K_ESCAPE, pygame.K_RETURN, pygame.K_KP_ENTER):
                     active_screen = "main"
@@ -203,3 +203,13 @@ def show_start_menu():
             _draw_options(screen, fonts)
         pygame.display.flip()
         clock.tick(60)
+
+
+def open_in_game_menu(game_clock):
+    """Pause a running map and resume it from the startup menu."""
+    previous_caption = pygame.display.get_caption()[0]
+    resume_game = show_start_menu(escape_returns=True)
+    pygame.display.set_caption(previous_caption)
+    # Discard time spent in the menu so physics do not jump on resume.
+    game_clock.tick()
+    return resume_game

@@ -6,9 +6,14 @@ os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 
 import pygame
 
-from map8.map8 import create_platform_rects, load_map
+from map8.map8 import MUSIC_PATH, create_platform_rects, load_map
 from map8.platform import platform
-from Orge.ogre import OGRE_MAX_HEALTH, OgreBoss
+from Orge.ogre import (
+    OGRE_ATTACK_COOLDOWN,
+    OGRE_ATTACK_DURATION,
+    OGRE_MAX_HEALTH,
+    OgreBoss,
+)
 from player import Player
 from player.player import KICK_DURATION
 
@@ -38,6 +43,7 @@ class Map8Tests(unittest.TestCase):
             tile != -1 for row in platform for tile in row
         )
         self.assertEqual(len(create_platform_rects()), expected_count)
+        self.assertTrue(MUSIC_PATH.is_file())
 
     def test_ogre_has_three_rage_stages(self):
         ogre = OgreBoss(790, 272, 250, 950)
@@ -60,6 +66,25 @@ class Map8Tests(unittest.TestCase):
         ogre.update(0.01, player)
 
         self.assertLess(player.health, player.max_health)
+
+    def test_ogre_waits_twenty_seconds_after_each_swing(self):
+        player = Player(730, 200)
+        ogre = OgreBoss(790, 272, 250, 950)
+        player.rect.center = (
+            ogre.rect.centerx - 40,
+            ogre.rect.centery,
+        )
+        player.position.update(player.rect.topleft)
+
+        ogre._start_attack()
+        ogre.update(OGRE_ATTACK_DURATION, player)
+        self.assertEqual(ogre.attack_cooldown_left, 20.0)
+
+        ogre.update(19.9, player)
+        self.assertFalse(ogre.attack_time_left > 0)
+        ogre.update(0.1, player)
+        self.assertTrue(ogre.attack_time_left > 0)
+        self.assertEqual(OGRE_ATTACK_COOLDOWN, 20.0)
 
     def test_kick_deals_same_level_scaled_damage_as_space_attack(self):
         player = Player(100, 200)
