@@ -157,7 +157,6 @@ class MapSelectionBox:
         map2_cleared=False,
         map3_cleared=False,
         map4_cleared=False,
-        map5_cleared=False,
         map7_cleared=False,
     ):
         self.options = [
@@ -185,15 +184,6 @@ class MapSelectionBox:
                     "CLEARED" if map4_cleared
                     else "DRAGON MISSION" if map3_cleared
                     else "LOCKED: Clear Toad Realm"
-                ),
-            },
-            {
-                "name": "Crystal Labyrinth",
-                "map": "map5",
-                "locked": False,
-                "status": (
-                    "CLEARED" if map5_cleared
-                    else "CRYSTAL PUZZLE (TEST OPEN)"
                 ),
             },
             {

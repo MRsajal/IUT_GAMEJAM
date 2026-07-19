@@ -5,14 +5,18 @@ from map2.map2 import map2
 from map3.map3 import map3
 from opening_video import SLIME_VIDEO_PATH, play_opening_video, play_video
 from map4.map4 import map4
-from map5.map5 import map5
 from map6.map6 import map6
 from map7.map7 import map7
 from map8.map8 import map8
+from start_menu import show_start_menu
 
 
 def main():
     pygame.init()
+
+    if not show_start_menu():
+        pygame.quit()
+        return
 
     if not play_opening_video():
         pygame.quit()
@@ -23,7 +27,6 @@ def main():
         "map2": map2,
         "map3": map3,
         "map4": map4,
-        "map5": map5,
         "map6": map6,
         "map7": map7,
         "map8": map8,

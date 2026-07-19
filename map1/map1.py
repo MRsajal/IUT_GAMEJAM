@@ -100,7 +100,7 @@ def map1(player=None, arrived_from=None):
     platform_rects = create_platform_rects()
     entry_spawn = (
         MAP2_RETURN_SPAWN
-        if arrived_from in ("map2", "map5")
+        if arrived_from == "map2"
         else PLAYER_SPAWN
     )
     if player is None:
@@ -239,7 +239,6 @@ def map1(player=None, arrived_from=None):
                 player.map2_cleared,
                 player.map3_cleared,
                 player.map4_cleared,
-                player.map5_cleared,
                 player.map7_mission_complete,
             )
 
