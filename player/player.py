@@ -165,6 +165,8 @@ class Player:
         self.map2_cleared = False
         self.intro_dialogue_seen = False
         self.slime_video_seen = False
+        self.toad_video_seen = False
+        self.flying_video_seen = False
         self.map4_cleared = False
         self.map6_cleared = False
         self.map7_painting_angle = 0

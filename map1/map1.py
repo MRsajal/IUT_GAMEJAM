@@ -26,36 +26,40 @@ MUSIC_PATH = Path(__file__).parent / "music.mp3"
 
 INTRO_DIALOGUE = [
     {
-        "speaker": "Mysterious Keeper",
-        "text": "Hey! You there! Can you hear me?",
+        "speaker": "Headmaster",
+        "text": "The Rite of Initiation is over. Every apprentice awakened their magic... except you.",
     },
     {
         "speaker": "Girl",
-        "text": "Where am I? And why is everything glowing?",
+        "text": "I tried everything, Headmaster. Does this mean I have to leave the academy?",
     },
     {
-        "speaker": "Mysterious Keeper",
-        "text": "You kicked the Emberstone, didn't you?",
-    },
-    {
-        "speaker": "Girl",
-        "text": "I thought it was just a rock...",
-    },
-    {
-        "speaker": "Mysterious Keeper",
-        "text": "That stone protected the barriers between our worlds. Your kick awakened the portals and the creatures beyond them.",
+        "speaker": "Headmaster",
+        "text": "No. Your magic isn't missing. It's sleeping.",
     },
     {
         "speaker": "Girl",
-        "text": "Then tell me how to fix it.",
+        "text": "Then how do I wake it?",
     },
     {
-        "speaker": "Mysterious Keeper",
-        "text": "Travel through the portal. Defeat the slimes and recover their Emberstones. And remember: your kick may be your greatest weapon.",
+        "speaker": "Headmaster",
+        "text": "Find the Ancient Shrines beyond these portals. Each lies in a different realm and guards a forgotten branch of magic.",
+    },
+    {
+        "speaker": "Girl",
+        "text": "Ember Forest, the Toad Realm, the skies beyond... You want me to cross them without a single spell?",
+    },
+    {
+        "speaker": "Headmaster",
+        "text": "Take this wooden staff. Gather the relics guarded in each realm; near their shrine, your sleeping magic will begin to stir.",
+    },
+    {
+        "speaker": "Girl",
+        "text": "Then I will awaken every shrine and return as a true mage.",
     },
     {
         "speaker": "Objective",
-        "text": "Reach the portal. Move with A and D, jump with W, attack with SPACE, and kick with K.",
+        "text": "Begin the Shrine Quest. Reach the portal with A/D, jump with W, strike with SPACE, and kick with K.",
     },
 ]
 
@@ -145,7 +149,7 @@ def map1(player=None, arrived_from=None):
     if not player.intro_dialogue_seen and arrived_from is None:
         dialogue_portraits = {
             "Girl": player.idle_right[0],
-            "Mysterious Keeper": healing_npc.portrait,
+            "Headmaster": healing_npc.portrait,
         }
         intro_dialogue = DialogueBox(
             INTRO_DIALOGUE, portraits=dialogue_portraits
