@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 
@@ -16,9 +17,16 @@ FLYING_VIDEO_PATH = Path(__file__).parent / "openingvid" / "flying_map.mp4"
 
 def _extract_video_audio(video_path):
     """Extract an MP4 audio track to a temporary WAV file."""
-    try:
-        import imageio_ffmpeg
-    except ImportError:
+    ffmpeg_executable = shutil.which("ffmpeg")
+    if ffmpeg_executable is None:
+        try:
+            import imageio_ffmpeg
+
+            ffmpeg_executable = imageio_ffmpeg.get_ffmpeg_exe()
+        except (ImportError, RuntimeError):
+            ffmpeg_executable = None
+
+    if ffmpeg_executable is None:
         print(
             "Video audio skipped: install dependencies with "
             "'python -m pip install -r requirements.txt'."
@@ -32,7 +40,7 @@ def _extract_video_audio(video_path):
     temporary_audio.close()
 
     command = [
-        imageio_ffmpeg.get_ffmpeg_exe(),
+        ffmpeg_executable,
         "-loglevel",
         "error",
         "-y",
@@ -48,13 +56,21 @@ def _extract_video_audio(video_path):
         startupinfo = subprocess.STARTUPINFO()
         startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
 
-    result = subprocess.run(
-        command,
-        capture_output=True,
-        startupinfo=startupinfo,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            startupinfo=startupinfo,
+            check=False,
+        )
+    except OSError as error:
+        print(f"Video audio extraction failed: {error}")
+        audio_path.unlink(missing_ok=True)
+        return None
     if result.returncode != 0 or audio_path.stat().st_size == 0:
+        error_message = result.stderr.decode(errors="replace").strip()
+        if error_message:
+            print(f"Video audio extraction failed: {error_message}")
         audio_path.unlink(missing_ok=True)
         return None
     return audio_path
@@ -66,9 +82,12 @@ def _start_video_audio(video_path):
     if audio_path is None:
         return None
     try:
+        if not pygame.mixer.get_init():
+            pygame.mixer.init()
         pygame.mixer.music.load(audio_path)
+        pygame.mixer.music.set_volume(1.0)
         pygame.mixer.music.play()
-    except pygame.error as error:
+    except (OSError, pygame.error) as error:
         print(f"Video audio skipped: {error}")
         audio_path.unlink(missing_ok=True)
         return None
