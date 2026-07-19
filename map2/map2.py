@@ -148,7 +148,9 @@ def map2(player=None, arrived_from=None):
             and not player.is_kicking
         ):
             defeated_slimes = [
-                slime for slime in slimes if not slime.alive
+                slime
+                for slime in slimes
+                if not slime.alive and slime.knockback_air_time <= 0
             ]
             for slime in defeated_slimes:
                 player.add_points(SLIME_POINTS)

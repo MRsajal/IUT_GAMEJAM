@@ -15,7 +15,7 @@ from Orge.ogre import (
     OgreBoss,
 )
 from player import Player
-from player.player import KICK_DURATION
+from player.player import KICK_DURATION, KICK_IMPACT_TIME
 
 
 class DamageTarget:
@@ -93,7 +93,7 @@ class Map8Tests(unittest.TestCase):
         kick = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_k)
 
         self.assertTrue(player.handle_event(kick))
-        player._update_kick(KICK_DURATION - 0.01, [target])
+        player._update_kick(KICK_IMPACT_TIME - 0.01, [target])
         self.assertEqual(target.damage_taken, 0)
 
         player._update_kick(0.01, [target])
