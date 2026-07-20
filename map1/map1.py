@@ -20,6 +20,7 @@ WALKABLE_TILE = 142
 PLAYER_SPAWN = (80, 180)
 MAP2_RETURN_SPAWN = (MAP_WIDTH - 80, 180)
 NPC_CENTER_X = 480
+FINAL_RETURN_SPAWN = (NPC_CENTER_X - 70, 180)
 
 MAP_PATH = Path(__file__).parent / "maps2.png"
 MUSIC_PATH = Path(__file__).parent / "music.mp3"
@@ -62,6 +63,49 @@ INTRO_DIALOGUE = [
         "text": "Begin the Shrine Quest. Reach the portal with A/D, jump with W, strike with SPACE, and kick with K.",
     },
 ]
+
+FINAL_VICTORY_DIALOGUE = [
+    {
+        "speaker": "Headmaster",
+        "text": (
+            "You have returned, and the final monster has fallen. "
+            "The realms are safe because of your courage."
+        ),
+    },
+    {
+        "speaker": "Girl",
+        "text": "I only followed the path you showed me, Headmaster.",
+    },
+    {
+        "speaker": "Headmaster",
+        "text": (
+            "You crossed every realm, mastered the ancient magic, and "
+            "defeated the Ogre. You have surpassed every expectation."
+        ),
+    },
+    {
+        "speaker": "Headmaster",
+        "text": (
+            "Today the academy welcomes you home as a true mage and a "
+            "hero. I am proud of you."
+        ),
+    },
+]
+
+
+def create_story_dialogue(player, arrived_from, portraits):
+    """Create the one-time opening or final Headmaster conversation."""
+    if (
+        arrived_from == "map8"
+        and player.map8_cleared
+        and not player.final_praise_seen
+    ):
+        return DialogueBox(
+            FINAL_VICTORY_DIALOGUE, portraits=portraits
+        ), "final"
+    if not player.intro_dialogue_seen and arrived_from is None:
+        return DialogueBox(INTRO_DIALOGUE, portraits=portraits), "intro"
+    return None, None
 
 
 def load_map():
@@ -106,6 +150,8 @@ def map1(player=None, arrived_from=None):
     entry_spawn = (
         MAP2_RETURN_SPAWN
         if arrived_from == "map2"
+        else FINAL_RETURN_SPAWN
+        if arrived_from == "map8"
         else PLAYER_SPAWN
     )
     if player is None:
@@ -145,15 +191,13 @@ def map1(player=None, arrived_from=None):
         default=MAP_HEIGHT,
     )
     healing_npc = HealingNPC(NPC_CENTER_X, npc_ground)
-    intro_dialogue = None
-    if not player.intro_dialogue_seen and arrived_from is None:
-        dialogue_portraits = {
-            "Girl": player.idle_right[0],
-            "Headmaster": healing_npc.portrait,
-        }
-        intro_dialogue = DialogueBox(
-            INTRO_DIALOGUE, portraits=dialogue_portraits
-        )
+    dialogue_portraits = {
+        "Girl": player.idle_right[0],
+        "Headmaster": healing_npc.portrait,
+    }
+    intro_dialogue, dialogue_kind = create_story_dialogue(
+        player, arrived_from, dialogue_portraits
+    )
 
     # Add future enemies here. Each needs a rect and take_damage(amount).
     damage_targets = []
@@ -208,7 +252,10 @@ def map1(player=None, arrived_from=None):
         if intro_dialogue is not None:
             intro_dialogue.update(delta_time)
             if intro_dialogue.finished:
-                player.intro_dialogue_seen = True
+                if dialogue_kind == "final":
+                    player.final_praise_seen = True
+                else:
+                    player.intro_dialogue_seen = True
 
         if (
             not player.ui_open

@@ -185,6 +185,7 @@ class Player:
         self.map7_book_delivered = False
         self.arcana_magic_mastered = False
         self.map8_cleared = False
+        self.final_praise_seen = False
         self.map7_puzzle_time_left = 90.0
         self.map7_puzzle_timer_started = False
         self.active_screen = None

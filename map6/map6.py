@@ -24,7 +24,7 @@ DOOR_X = 900
 DOOR_SIZE = (72, 101)
 GROUND_Y = 240
 MAP_PATH = Path(__file__).parent / "map6.png"
-DOOR_PATH = Path(__file__).parent / "door.jpg"
+DOOR_PATH = Path(__file__).parent / "door.png"
 MUSIC_PATH = Path(__file__).parent / "music.mp3"
 
 
