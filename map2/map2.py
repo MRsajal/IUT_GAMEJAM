@@ -71,7 +71,7 @@ def create_emberstone(slime, ground_y):
 
 def map2(player=None, arrived_from=None):
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-    pygame.display.set_caption("Map 2")
+    pygame.display.set_caption("The Broken Rite - Map 2")
     clock = pygame.time.Clock()
     play_background_music(MUSIC_PATH)
 

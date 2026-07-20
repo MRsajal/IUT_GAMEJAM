@@ -42,8 +42,8 @@ def _load_background():
 
 
 def _draw_title(screen, title_font):
-    shadow = title_font.render("ARCANE KICKOFF", True, (20, 13, 31))
-    title = title_font.render("ARCANE KICKOFF", True, (255, 221, 120))
+    shadow = title_font.render("THE BROKEN RITE", True, (20, 13, 31))
+    title = title_font.render("THE BROKEN RITE", True, (255, 221, 120))
     title_rect = title.get_rect(midtop=(SCREEN_SIZE[0] // 2, 18))
     screen.blit(shadow, title_rect.move(2, 2))
     screen.blit(title, title_rect)
@@ -128,7 +128,7 @@ def _draw_options(screen, fonts):
 def show_start_menu(escape_returns=False):
     """Return True for Start Game and False for Exit/window close."""
     screen = pygame.display.set_mode(SCREEN_SIZE)
-    pygame.display.set_caption("Arcane Kickoff")
+    pygame.display.set_caption("The Broken Rite")
     clock = pygame.time.Clock()
     background = _load_background()
     fonts = {

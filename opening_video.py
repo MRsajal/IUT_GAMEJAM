@@ -120,7 +120,7 @@ def play_video(video_path, screen_size=(600, 320)):
         return True
 
     screen = pygame.display.set_mode(screen_size)
-    pygame.display.set_caption("Arcane Kickoff")
+    pygame.display.set_caption("The Broken Rite")
     clock = pygame.time.Clock()
     video = cv2.VideoCapture(str(video_path))
     fps = video.get(cv2.CAP_PROP_FPS)

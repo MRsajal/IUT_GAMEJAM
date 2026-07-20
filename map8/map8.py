@@ -53,7 +53,7 @@ def complete_final_boss(player):
 def map8(player=None, arrived_from=None):
     """Run the final Ogre boss arena."""
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-    pygame.display.set_caption("Map 8 - Final Battle")
+    pygame.display.set_caption("The Broken Rite - Final Battle")
     clock = pygame.time.Clock()
     play_background_music(MUSIC_PATH)
     background = load_map()

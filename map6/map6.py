@@ -74,7 +74,7 @@ def stop_flight(player):
 
 def map6(player=None, arrived_from=None):
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-    pygame.display.set_caption("Map 6 - The Grieving Husband")
+    pygame.display.set_caption("The Broken Rite - The Grieving Husband")
     clock = pygame.time.Clock()
     play_background_music(MUSIC_PATH)
     background = load_map()

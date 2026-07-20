@@ -141,7 +141,7 @@ def create_platform_rects():
 
 def map1(player=None, arrived_from=None):
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-    pygame.display.set_caption("Map 1")
+    pygame.display.set_caption("The Broken Rite - Map 1")
     clock = pygame.time.Clock()
     play_background_music(MUSIC_PATH)
 
