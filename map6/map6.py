@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import pygame
-
 from music_manager import play_background_music
 from npc3 import QuestNPC
 from player import Player

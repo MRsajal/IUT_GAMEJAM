@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import pygame
-
 from dialogue import DialogueBox, MapSelectionBox
 from music_manager import play_background_music
 from npc1 import HealingNPC

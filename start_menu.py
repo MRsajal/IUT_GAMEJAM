@@ -3,7 +3,6 @@
 from pathlib import Path
 
 import pygame
-
 from music_manager import get_master_volume, set_master_volume
 
 

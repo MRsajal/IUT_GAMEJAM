@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import pygame
-
 from ghosts import Ghost, GhostWindow
 from music_manager import play_background_music
 from player import Player

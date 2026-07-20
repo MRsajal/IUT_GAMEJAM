@@ -2,7 +2,6 @@ from pathlib import Path
 import random
 
 import pygame
-
 from crow import Crow
 from Dragon import DragonBoss
 from music_manager import play_background_music

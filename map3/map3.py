@@ -2,7 +2,6 @@ from pathlib import Path
 import random
 
 import pygame
-
 from music_manager import play_background_music
 from player import Player
 from npc2 import MissionNPC
